@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo de Proveedores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet">
+<style>
+/* ===== TOKENS ===== */
+:root, [data-theme="light"] {
+  --color-bg: #f7f6f2; --color-surface: #f9f8f5; --color-surface-2: #fbfbf9;
+  --color-surface-offset: #f3f0ec; --color-surface-dynamic: #e6e4df;
+  --color-divider: #dcd9d5; --color-border: #d4d1ca;
+  --color-text: #28251d; --color-text-muted: #7a7974; --color-text-faint: #bab9b4;
+  --color-text-inverse: #f9f8f4;
+  --color-primary: #01696f; --color-primary-hover: #0c4e54; --color-primary-active: #0f3638;
+  --color-primary-highlight: #cedcd8;
+  --color-success: #437a22; --color-error: #a12c7b;
+  --color-warning: #964219;
+  --radius-sm: 0.375rem; --radius-md: 0.5rem; --radius-lg: 0.75rem;
+  --radius-xl: 1rem; --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+  --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.01 80 / 0.12);
+  --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem;
+  --space-12: 3rem;
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+  --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+  --font-body: 'Inter', sans-serif;
+}
+[data-theme="dark"] {
+  --color-bg: #171614; --color-surface: #1c1b19; --color-surface-2: #201f1d;
+  --color-surface-offset: #1d1c1a; --color-surface-dynamic: #2d2c2a;
+  --color-divider: #262523; --color-border: #393836;
+  --color-text: #cdccca; --color-text-muted: #797876; --color-text-faint: #5a5957;
+  --color-text-inverse: #2b2a28;
+  --color-primary: #4f98a3; --color-primary-hover: #227f8b; --color-primary-active: #1a626b;
+  --color-primary-highlight: #313b3b;
+  --color-success: #6daa45; --color-error: #d163a7; --color-warning: #bb653b;
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.4);
+}
+
+/* ===== BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: none; text-size-adjust: none; scroll-behavior: smooth; }
+body { min-height: 100dvh; font-family: var(--font-body); font-size: var(--text-base);
+  color: var(--color-text); background: var(--color-bg); line-height: 1.6; }
+img, svg { display: block; max-width: 100%; }
+button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
+a, button, [role="button"] { transition: color var(--transition), background var(--transition),
+  border-color var(--transition), box-shadow var(--transition); }
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; } }
+
+/* ===== LAYOUT ===== */
+#app { display: flex; flex-direction: column; min-height: 100dvh; }
+
+/* ===== HEADER ===== */
+.app-header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) var(--space-4);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+}
+.header-brand { display: flex; align-items: center; gap: var(--space-2); }
+.header-brand svg { color: var(--color-primary); flex-shrink: 0; }
+.brand-name { font-weight: 700; font-size: var(--text-base); color: var(--color-text); letter-spacing: -0.01em; }
+.brand-sub { font-size: var(--text-xs); color: var(--color-text-muted); display: none; }
+@media (min-width: 400px) { .brand-sub { display: inline; } }
+.header-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* ===== BUTTONS ===== */
+.btn { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; line-height: 1;
+  min-height: 44px; border: 1px solid transparent; text-decoration: none; }
+.btn-primary { background: var(--color-primary); color: var(--color-text-inverse); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-secondary { background: var(--color-surface-offset); border-color: var(--color-border); color: var(--color-text); }
+.btn-secondary:hover { background: var(--color-surface-dynamic); }
+.btn-ghost { color: var(--color-text-muted); padding: var(--space-2); min-height: 44px; min-width: 44px;
+  border-radius: var(--radius-md); display: inline-flex; align-items: center; justify-content: center; }
+.btn-ghost:hover { background: var(--color-surface-offset); color: var(--color-text); }
+.btn-danger { background: var(--color-error); color: white; border-color: transparent; }
+.btn-danger:hover { filter: brightness(0.9); }
+.btn-sm { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: var(--text-xs); }
+
+/* ===== MAIN CONTENT ===== */
+.main-content { flex: 1; padding: var(--space-4); max-width: 640px; margin: 0 auto; width: 100%; }
+
+/* ===== ANNOUNCEMENTS ===== */
+.announcements { margin-bottom: var(--space-4); }
+.announcement-card {
+  background: var(--color-primary-highlight);
+  border: 1px solid oklch(from var(--color-primary) l c h / 0.25);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2); position: relative;
+}
+.announcement-card:last-child { margin-bottom: 0; }
+.announcement-icon { font-size: 1rem; margin-right: var(--space-2); }
+.announcement-text { font-size: var(--text-sm); color: var(--color-text); flex: 1; }
+.announcement-date { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: var(--space-1); }
+.announcement-inner { display: flex; align-items: flex-start; gap: var(--space-2); }
+
+/* ===== SECTION TITLE ===== */
+.section-label { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--color-text-muted); margin-bottom: var(--space-3); }
+
+/* ===== SUPPLIER GRID ===== */
+.suppliers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: var(--space-3); margin-bottom: var(--space-6); }
+.supplier-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl); padding: var(--space-4); text-align: center;
+  cursor: pointer; transition: box-shadow var(--transition), transform var(--transition),
+    border-color var(--transition), background var(--transition);
+  min-height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-2);
+}
+.supplier-card:hover { box-shadow: var(--shadow-md); border-color: var(--color-primary); transform: translateY(-1px); }
+.supplier-card:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
+.supplier-card.selected { background: var(--color-primary-highlight); border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
+.supplier-initials {
+  width: 40px; height: 40px; border-radius: var(--radius-full);
+  background: var(--color-primary); color: var(--color-text-inverse);
+  font-weight: 700; font-size: var(--text-sm); display: flex; align-items: center; justify-content: center;
+}
+.supplier-card.selected .supplier-initials { background: var(--color-primary-active); }
+.supplier-name { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); line-height: 1.3; }
+
+/* ===== TEMPLATE VIEW ===== */
+.template-section { margin-top: var(--space-2); }
+.template-header { display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-3); gap: var(--space-2); flex-wrap: wrap; }
+.template-title { font-size: var(--text-lg); font-weight: 700; color: var(--color-text); }
+.template-box {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--space-4);
+  font-size: var(--text-sm); line-height: 1.8; white-space: pre-wrap;
+  word-break: break-word; min-height: 120px; color: var(--color-text);
+  margin-bottom: var(--space-3); box-shadow: var(--shadow-sm);
+}
+.copy-feedback { font-size: var(--text-xs); color: var(--color-success); text-align: center;
+  height: 20px; transition: opacity var(--transition); opacity: 0; }
+.copy-feedback.show { opacity: 1; }
+
+/* ===== MODALS ===== */
+.modal-overlay { position: fixed; inset: 0; background: oklch(0.1 0 0 / 0.5);
+  z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+  padding: var(--space-4); opacity: 0; pointer-events: none; transition: opacity var(--transition); }
+@media (min-width: 480px) { .modal-overlay { align-items: center; } }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--color-surface); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%; max-width: 480px; padding: var(--space-6); box-shadow: var(--shadow-lg);
+  max-height: 90dvh; overflow-y: auto; transform: translateY(40px);
+  transition: transform var(--transition);
+}
+@media (min-width: 480px) { .modal { border-radius: var(--radius-xl); transform: translateY(0) scale(0.97); } }
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+.modal-title { font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-4); color: var(--color-text); }
+.modal-close { float: right; margin-top: -4px; }
+
+/* ===== FORMS ===== */
+.form-group { margin-bottom: var(--space-4); }
+.form-label { display: block; font-size: var(--text-sm); font-weight: 500; color: var(--color-text-muted);
+  margin-bottom: var(--space-2); }
+.form-input, .form-textarea {
+  width: 100%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+  border: 1px solid var(--color-border); background: var(--color-bg);
+  font-size: var(--text-sm); color: var(--color-text); min-height: 44px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-input:focus, .form-textarea:focus { outline: none; border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px oklch(from var(--color-primary) l c h / 0.15); }
+.form-textarea { min-height: 140px; resize: vertical; line-height: 1.6; }
+.form-hint { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: var(--space-1); }
+.form-actions { display: flex; gap: var(--space-2); justify-content: flex-end; padding-top: var(--space-2); flex-wrap: wrap; }
+
+/* ===== ADMIN PANEL ===== */
+.admin-section { margin-bottom: var(--space-6); }
+.admin-section-title { font-size: var(--text-base); font-weight: 600; color: var(--color-text);
+  margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-divider); }
+.admin-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.admin-list-item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+}
+.admin-list-item-name { font-size: var(--text-sm); font-weight: 500; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-item-actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
+.badge { display: inline-flex; align-items: center; padding: 2px var(--space-2);
+  border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: 600; }
+.badge-success { background: color-mix(in oklch, var(--color-success) 15%, var(--color-surface));
+  color: var(--color-success); }
+
+/* ===== LOGIN SCREEN ===== */
+.login-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4); background: var(--color-bg); }
+.login-card { background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl); padding: var(--space-8) var(--space-6);
+  width: 100%; max-width: 360px; box-shadow: var(--shadow-md); }
+.login-logo { display: flex; justify-content: center; margin-bottom: var(--space-6); }
+.login-title { font-size: var(--text-xl); font-weight: 700; text-align: center;
+  color: var(--color-text); margin-bottom: var(--space-1); }
+.login-sub { font-size: var(--text-sm); color: var(--color-text-muted); text-align: center; margin-bottom: var(--space-6); }
+.error-msg { background: color-mix(in oklch, var(--color-error) 12%, var(--color-surface));
+  border: 1px solid color-mix(in oklch, var(--color-error) 30%, transparent);
+  color: var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm); margin-bottom: var(--space-3); display: none; }
+.error-msg.show { display: block; }
+
+/* ===== EMPTY STATE ===== */
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: var(--space-12) var(--space-8); color: var(--color-text-muted); }
+.empty-state svg { color: var(--color-text-faint); margin-bottom: var(--space-4); }
+.empty-state h3 { color: var(--color-text); font-size: var(--text-base); margin-bottom: var(--space-2); }
+.empty-state p { max-width: 34ch; font-size: var(--text-sm); }
+
+/* ===== BACK BUTTON ===== */
+.back-row { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+.back-btn { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm);
+  color: var(--color-text-muted); padding: var(--space-2); margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius-md); }
+.back-btn:hover { color: var(--color-text); background: var(--color-surface-offset); }
+
+/* ===== DIVIDER ===== */
+.divider { height: 1px; background: var(--color-divider); margin: var(--space-4) 0; }
+
+/* ===== TABS (admin) ===== */
+.tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--color-divider);
+  margin-bottom: var(--space-4); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tab-btn { padding: var(--space-2) var(--space-4); font-size: var(--text-sm); font-weight: 500;
+  color: var(--color-text-muted); border-bottom: 2px solid transparent; white-space: nowrap;
+  margin-bottom: -1px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.tab-btn:hover { color: var(--color-text); }
+.tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.logo-text { font-weight: 800; letter-spacing: -0.02em; color: var(--color-primary); font-family: var(--font-body); }
+.login-logo .logo-text { font-size: 2rem; background: var(--color-primary-highlight); padding: var(--space-2) var(--space-4); border-radius: var(--radius-lg); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  view: 'login', // login | home | supplier | admin
+  selectedSupplier: null,
+  adminTab: 'suppliers', // suppliers | announcements
+  editingSupplier: null,
+  editingAnnouncement: null,
+};
+
+// Passwords
+const STORE_KEYS = {
+  '1234': 'Tienda',
+};
+const ADMIN_PASS = 'admin2025';
+let currentStore = null;
+
+// Data (in-memory)
+let data = {
+  suppliers: [
+    { id: 1, name: 'Prokpil', products: `ACTIVADOR DE BRILLO SERUM ARGAN 60ML (0)
+ACONDICIONADOR REPARADOR 300ML (0)
+KERATINA LÍQUIDA PROFESIONAL 200ML (0)
+MASCARILLA NUTRITIVA COCONUT 250ML (0)
+SHAMPÚ RECONSTRUCTOR 400ML (0)` },
+    { id: 2, name: 'Elegance', products: `AMPOLLA ELEGANCE MATIZADORA 15ML (0)
+COLOR DIRECTO MATIZADOR VIOLETA 100G (0)
+MASCARILLA MATIZADORA SILVER 250ML (0)
+SHAMPÚ BLOND PLATINUM 300ML (0)
+TRATAMIENTO REPARADOR BOTOX 200G (0)` },
+    { id: 3, name: 'Be Natural', products: `ACEITE CAPILAR ARGÁN PURO 50ML (0)
+BRILLANTINA NUTRITIVA 100ML (0)
+CALOR PROTECTOR SPRAY TÉRMICO 150ML (0)
+CREMA DE PEINAR SIN ENJUAGUE 200ML (0)
+SERUM REPARADOR PUNTAS 30ML (0)` },
+  ],
+  announcements: [
+    { id: 1, icon: '📢', text: 'Nuevo catálogo disponible desde el 1 de abril. Recuerda actualizar tus pedidos.', date: '01/04/2026' },
+    { id: 2, icon: '⏰', text: 'Los pedidos deben realizarse antes del miércoles a las 3pm para entrega el viernes.', date: '28/03/2026' },
+  ],
+};
+
+let nextSupplierId = 10;
+let nextAnnouncementId = 10;
+
+// ============================================================
+// RENDER ENGINE
+// ============================================================
+function render() {
+  const app = document.getElementById('app');
+  if (state.view === 'login') app.innerHTML = renderLogin();
+  else if (state.view === 'home') app.innerHTML = renderHome();
+  else if (state.view === 'supplier') app.innerHTML = renderSupplier();
+  else if (state.view === 'admin') app.innerHTML = renderAdmin();
+  attachEvents();
+}
+
+// ============================================================
+// ICONS
+// ============================================================
+const icon = {
+  logo: `<span class="logo-text">MODACOLORS</span>`,
+  sun: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
+  moon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+  copy: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  back: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>`,
+  admin: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>`,
+  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  add: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  logout: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+};
+
+// ============================================================
+// VIEWS
+// ============================================================
+function renderLogin() {
+  return `
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">${icon.logo}</div>
+      <h1 class="login-title">Catálogo</h1>
+      <p class="login-sub">Acceso para personal</p>
+      <div class="error-msg" id="loginError">Clave incorrecta. Intenta de nuevo.</div>
+      <div class="form-group">
+        <label class="form-label" for="storeKey">Clave de tienda</label>
+        <input id="storeKey" type="password" class="form-input" placeholder="Ingresa tu clave" autocomplete="current-password" maxlength="20">
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" id="loginBtn">Ingresar</button>
+    </div>
+  </div>`;
+}
+
+function renderHome() {
+  const announcements = data.announcements.map(a => `
+    <div class="announcement-card">
+      <div class="announcement-inner">
+        <span class="announcement-icon">${a.icon}</span>
+        <div>
+          <div class="announcement-text">${escHtml(a.text)}</div>
+          <div class="announcement-date">${escHtml(a.date)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const supplierCards = data.suppliers.map(s => `
+    <button class="supplier-card" data-supplier-id="${s.id}" aria-label="Ver plantilla de ${escHtml(s.name)}">
+      <div class="supplier-initials">${initials(s.name)}</div>
+      <div class="supplier-name">${escHtml(s.name)}</div>
+    </button>`).join('');
+
+  const emptyState = data.suppliers.length === 0 ? `
+    <div class="empty-state">
+      ${icon.add}
+      <h3>Sin proveedores</h3>
+      <p>El administrador aún no ha agregado proveedores.</p>
+    </div>` : '';
+
+  return `
+  <div id="app">
+    ${renderHeader()}
+    <main class="main-content">
+      ${data.announcements.length > 0 ? `
+        <div class="announcements">
+          <div class="section-label">Comunicados</div>
+          ${announcements}
+        </div>` : ''}
+      <div class="section-label">Proveedores</div>
+      <div class="suppliers-grid">${supplierCards}</div>
+      ${emptyState}
+    </main>
+  </div>
+  ${renderAdminModal()}`;
+}
+
+function renderSupplier() {
+  const s = data.suppliers.find(x => x.id === state.selectedSupplier);
+  if (!s) { state.view = 'home'; return renderHome(); }
+  return `
+  <div id="app">
+    ${renderHeader()}
+    <main class="main-content">
+      <div class="back-row">
+        <button class="back-btn" id="backBtn">${icon.back} Proveedores</button>
+      </div>
+      <div class="template-section">
+        <div class="template-header">
+          <h2 class="template-title">${escHtml(s.name)}</h2>
+          <button class="btn btn-primary btn-sm" id="copyBtn">${icon.copy} Copiar plantilla</button>
+        </div>
+        <div class="template-box" id="templateBox">${escHtml(s.products)}</div>
+        <div class="copy-feedback" id="copyFeedback">✓ Plantilla copiada. ¡Pégala en WhatsApp!</div>
+      </div>
+    </main>
+  </div>
+  ${renderAdminModal()}`;
+}
+
+function renderAdmin() {
+  const isSupplierTab = state.adminTab === 'suppliers';
+  const supplierList = data.suppliers.map(s => `
+    <div class="admin-list-item">
+      <span class="admin-list-item-name">${escHtml(s.name)}</span>
+      <div class="admin-item-actions">
+        <button class="btn btn-ghost btn-sm" data-edit-supplier="${s.id}" aria-label="Editar ${escHtml(s.name)}">${icon.edit}</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--color-error)" data-delete-supplier="${s.id}" aria-label="Eliminar ${escHtml(s.name)}">${icon.trash}</button>
+      </div>
+    </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin proveedores aún.</p>';
+
+  const announcementList = data.announcements.map(a => `
+    <div class="admin-list-item">
+      <span class="admin-list-item-name">${a.icon} ${escHtml(a.text.substring(0, 50))}${a.text.length > 50 ? '…' : ''}</span>
+      <div class="admin-item-actions">
+        <button class="btn btn-ghost btn-sm" data-edit-announcement="${a.id}" aria-label="Editar comunicado">${icon.edit}</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--color-error)" data-delete-announcement="${a.id}" aria-label="Eliminar comunicado">${icon.trash}</button>
+      </div>
+    </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin comunicados aún.</p>';
+
+  return `
+  <div id="app">
+    ${renderHeader(true)}
+    <main class="main-content">
+      <div class="back-row">
+        <button class="back-btn" id="backBtn">${icon.back} Inicio</button>
+      </div>
+      <h2 class="template-title" style="margin-bottom:var(--space-4)">Administración</h2>
+      <div class="tabs">
+        <button class="tab-btn ${isSupplierTab ? 'active' : ''}" data-admin-tab="suppliers">Proveedores</button>
+        <button class="tab-btn ${!isSupplierTab ? 'active' : ''}" data-admin-tab="announcements">Comunicados</button>
+      </div>
+      ${isSupplierTab ? `
+      <div class="admin-section">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-3)">
+          <button class="btn btn-primary btn-sm" id="addSupplierBtn">${icon.add} Nuevo proveedor</button>
+        </div>
+        <div class="admin-list">${supplierList}</div>
+      </div>` : `
+      <div class="admin-section">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-3)">
+          <button class="btn btn-primary btn-sm" id="addAnnouncementBtn">${icon.add} Nuevo comunicado</button>
+        </div>
+        <div class="admin-list">${announcementList}</div>
+      </div>`}
+    </main>
+  </div>
+  ${renderSupplierModal()}
+  ${renderAnnouncementModal()}
+  ${renderAdminLoginModal()}`;
+}
+
+function renderHeader(isAdmin = false) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return `
+  <header class="app-header">
+    <div class="header-brand">
+      <span style="color:var(--color-primary)">${icon.logo}</span>
+      <div>
+        <div class="brand-name">Catálogo</div>
+        ${currentStore ? `<div class="brand-sub">${escHtml(currentStore)}</div>` : ''}
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-ghost" data-theme-toggle aria-label="Cambiar tema">${isDark ? icon.sun : icon.moon}</button>
+      ${!isAdmin && state.view !== 'login' ? `<button class="btn btn-secondary btn-sm" id="adminBtn">${icon.admin} Admin</button>` : ''}
+      ${state.view !== 'login' ? `<button class="btn-ghost" id="logoutBtn" aria-label="Salir" title="Cerrar sesión">${icon.logout}</button>` : ''}
+    </div>
+  </header>`;
+}
+
+function renderAdminModal() {
+  return `
+  <div class="modal-overlay" id="adminModal" role="dialog" aria-modal="true" aria-label="Acceso administrador">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <h3 class="modal-title" style="margin:0">Acceso Administrador</h3>
+        <button class="btn-ghost modal-close" id="closeAdminModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="error-msg" id="adminError">Contraseña incorrecta.</div>
+      <div class="form-group">
+        <label class="form-label" for="adminPass">Contraseña</label>
+        <input id="adminPass" type="password" class="form-input" placeholder="Contraseña de administrador" maxlength="30">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="cancelAdminModal">Cancelar</button>
+        <button class="btn btn-primary" id="confirmAdminLogin">Ingresar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAdminLoginModal() { return ''; }
+
+function renderSupplierModal() {
+  const s = state.editingSupplier;
+  const isEdit = !!s;
+  return `
+  <div class="modal-overlay ${isEdit !== null ? '' : ''}" id="supplierModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <h3 class="modal-title" style="margin:0">${isEdit ? 'Editar proveedor' : 'Nuevo proveedor'}</h3>
+        <button class="btn-ghost" id="closeSupplierModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="supplierName">Nombre del proveedor</label>
+        <input id="supplierName" class="form-input" type="text" placeholder="Ej: Prokpil" value="${isEdit ? escAttr(s.name) : ''}" maxlength="60">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="supplierProducts">Plantilla de productos</label>
+        <textarea id="supplierProducts" class="form-textarea" placeholder="Un producto por línea, con (0) al final&#10;Ej: SHAMPÚ REPARADOR 400ML (0)">${isEdit ? escHtml(s.products) : ''}</textarea>
+        <div class="form-hint">Escribe un producto por línea. Los usuarios reemplazarán (0) con la cantidad.</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="cancelSupplierModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveSupplierBtn">${isEdit ? 'Guardar cambios' : 'Crear proveedor'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAnnouncementModal() {
+  const a = state.editingAnnouncement;
+  const isEdit = !!a;
+  return `
+  <div class="modal-overlay" id="announcementModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <h3 class="modal-title" style="margin:0">${isEdit ? 'Editar comunicado' : 'Nuevo comunicado'}</h3>
+        <button class="btn-ghost" id="closeAnnouncementModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="announcementIcon">Ícono (emoji)</label>
+        <input id="announcementIcon" class="form-input" type="text" placeholder="📢" value="${isEdit ? escAttr(a.icon) : '📢'}" maxlength="4">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="announcementText">Mensaje</label>
+        <textarea id="announcementText" class="form-textarea" placeholder="Escribe el comunicado aquí...">${isEdit ? escHtml(a.text) : ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="announcementDate">Fecha</label>
+        <input id="announcementDate" class="form-input" type="text" placeholder="DD/MM/AAAA" value="${isEdit ? escAttr(a.date) : getTodayDate()}" maxlength="12">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="cancelAnnouncementModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveAnnouncementBtn">${isEdit ? 'Guardar cambios' : 'Publicar'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function attachEvents() {
+  // Theme toggle
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      render();
+    });
+  });
+
+  // Login
+  const loginBtn = document.getElementById('loginBtn');
+  const storeKey = document.getElementById('storeKey');
+  if (loginBtn) {
+    const doLogin = () => {
+      const key = storeKey.value.trim();
+      if (STORE_KEYS[key]) {
+        currentStore = STORE_KEYS[key];
+        state.view = 'home';
+        render();
+      } else {
+        document.getElementById('loginError').classList.add('show');
+        storeKey.value = '';
+        storeKey.focus();
+      }
+    };
+    loginBtn.addEventListener('click', doLogin);
+    storeKey.addEventListener('keydown', e => e.key === 'Enter' && doLogin());
+    storeKey.focus();
+  }
+
+  // Logout
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', () => {
+    currentStore = null; state.view = 'login'; render();
+  });
+
+  // Supplier cards
+  document.querySelectorAll('[data-supplier-id]').forEach(card => {
+    card.addEventListener('click', () => {
+      state.selectedSupplier = parseInt(card.dataset.supplierId);
+      state.view = 'supplier';
+      render();
+    });
+  });
+
+  // Back button
+  const backBtn = document.getElementById('backBtn');
+  if (backBtn) backBtn.addEventListener('click', () => {
+    state.view = state.view === 'admin' ? 'home' : 'home';
+    state.selectedSupplier = null;
+    render();
+  });
+
+  // Copy button
+  const copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    const s = data.suppliers.find(x => x.id === state.selectedSupplier);
+    if (!s) return;
+    const text = s.products;
+    navigator.clipboard.writeText(text).then(() => {
+      const fb = document.getElementById('copyFeedback');
+      fb.classList.add('show');
+      setTimeout(() => fb.classList.remove('show'), 3000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      const fb = document.getElementById('copyFeedback');
+      fb.classList.add('show');
+      setTimeout(() => fb.classList.remove('show'), 3000);
+    });
+  });
+
+  // Admin button
+  const adminBtn = document.getElementById('adminBtn');
+  if (adminBtn) adminBtn.addEventListener('click', () => {
+    openModal('adminModal');
+    setTimeout(() => document.getElementById('adminPass')?.focus(), 50);
+  });
+
+  // Admin modal
+  const closeAdmin = document.getElementById('closeAdminModal');
+  const cancelAdmin = document.getElementById('cancelAdminModal');
+  const confirmAdmin = document.getElementById('confirmAdminLogin');
+  const adminPass = document.getElementById('adminPass');
+  if (closeAdmin) closeAdmin.addEventListener('click', () => closeModal('adminModal'));
+  if (cancelAdmin) cancelAdmin.addEventListener('click', () => closeModal('adminModal'));
+  if (confirmAdmin) {
+    const doAdmin = () => {
+      if (adminPass.value === ADMIN_PASS) {
+        closeModal('adminModal');
+        state.view = 'admin';
+        state.adminTab = 'suppliers';
+        render();
+      } else {
+        document.getElementById('adminError').classList.add('show');
+        adminPass.value = ''; adminPass.focus();
+      }
+    };
+    confirmAdmin.addEventListener('click', doAdmin);
+    adminPass?.addEventListener('keydown', e => e.key === 'Enter' && doAdmin());
+  }
+
+  // Admin modal overlay click
+  const adminModal = document.getElementById('adminModal');
+  if (adminModal) adminModal.addEventListener('click', e => { if (e.target === adminModal) closeModal('adminModal'); });
+
+  // Admin tabs
+  document.querySelectorAll('[data-admin-tab]').forEach(btn => {
+    btn.addEventListener('click', () => { state.adminTab = btn.dataset.adminTab; render(); });
+  });
+
+  // Add supplier
+  const addSupplierBtn = document.getElementById('addSupplierBtn');
+  if (addSupplierBtn) addSupplierBtn.addEventListener('click', () => {
+    state.editingSupplier = null; render();
+    openModal('supplierModal');
+    setTimeout(() => document.getElementById('supplierName')?.focus(), 50);
+  });
+
+  // Edit supplier
+  document.querySelectorAll('[data-edit-supplier]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.editSupplier);
+      state.editingSupplier = data.suppliers.find(s => s.id === id);
+      render();
+      openModal('supplierModal');
+      setTimeout(() => document.getElementById('supplierName')?.focus(), 50);
+    });
+  });
+
+  // Delete supplier
+  document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.deleteSupplier);
+      if (confirm('¿Eliminar este proveedor?')) {
+        data.suppliers = data.suppliers.filter(s => s.id !== id);
+        render();
+      }
+    });
+  });
+
+  // Supplier modal save
+  const saveSupplierBtn = document.getElementById('saveSupplierBtn');
+  if (saveSupplierBtn) saveSupplierBtn.addEventListener('click', () => {
+    const name = document.getElementById('supplierName').value.trim();
+    const products = document.getElementById('supplierProducts').value.trim();
+    if (!name) { alert('El nombre del proveedor es obligatorio.'); return; }
+    if (state.editingSupplier) {
+      const s = data.suppliers.find(x => x.id === state.editingSupplier.id);
+      if (s) { s.name = name; s.products = products; }
+    } else {
+      data.suppliers.push({ id: nextSupplierId++, name, products });
+    }
+    state.editingSupplier = null;
+    render();
+  });
+
+  const closeSupplierModal = document.getElementById('closeSupplierModal');
+  const cancelSupplierModal = document.getElementById('cancelSupplierModal');
+  if (closeSupplierModal) closeSupplierModal.addEventListener('click', () => { state.editingSupplier = null; render(); });
+  if (cancelSupplierModal) cancelSupplierModal.addEventListener('click', () => { state.editingSupplier = null; render(); });
+
+  const supplierModal = document.getElementById('supplierModal');
+  if (supplierModal) supplierModal.addEventListener('click', e => { if (e.target === supplierModal) { state.editingSupplier = null; render(); } });
+
+  // Add announcement
+  const addAnnouncementBtn = document.getElementById('addAnnouncementBtn');
+  if (addAnnouncementBtn) addAnnouncementBtn.addEventListener('click', () => {
+    state.editingAnnouncement = null; render();
+    openModal('announcementModal');
+    setTimeout(() => document.getElementById('announcementText')?.focus(), 50);
+  });
+
+  // Edit announcement
+  document.querySelectorAll('[data-edit-announcement]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.editAnnouncement);
+      state.editingAnnouncement = data.announcements.find(a => a.id === id);
+      render();
+      openModal('announcementModal');
+    });
+  });
+
+  // Delete announcement
+  document.querySelectorAll('[data-delete-announcement]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.deleteAnnouncement);
+      if (confirm('¿Eliminar este comunicado?')) {
+        data.announcements = data.announcements.filter(a => a.id !== id);
+        render();
+      }
+    });
+  });
+
+  // Announcement modal save
+  const saveAnnouncementBtn = document.getElementById('saveAnnouncementBtn');
+  if (saveAnnouncementBtn) saveAnnouncementBtn.addEventListener('click', () => {
+    const icon_ = document.getElementById('announcementIcon').value.trim() || '📢';
+    const text = document.getElementById('announcementText').value.trim();
+    const date = document.getElementById('announcementDate').value.trim();
+    if (!text) { alert('El mensaje es obligatorio.'); return; }
+    if (state.editingAnnouncement) {
+      const a = data.announcements.find(x => x.id === state.editingAnnouncement.id);
+      if (a) { a.icon = icon_; a.text = text; a.date = date; }
+    } else {
+      data.announcements.push({ id: nextAnnouncementId++, icon: icon_, text, date });
+    }
+    state.editingAnnouncement = null;
+    render();
+  });
+
+  const closeAnnouncementModal = document.getElementById('closeAnnouncementModal');
+  const cancelAnnouncementModal = document.getElementById('cancelAnnouncementModal');
+  if (closeAnnouncementModal) closeAnnouncementModal.addEventListener('click', () => { state.editingAnnouncement = null; render(); });
+  if (cancelAnnouncementModal) cancelAnnouncementModal.addEventListener('click', () => { state.editingAnnouncement = null; render(); });
+
+  const announcementModal = document.getElementById('announcementModal');
+  if (announcementModal) announcementModal.addEventListener('click', e => { if (e.target === announcementModal) { state.editingAnnouncement = null; render(); } });
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) { el.style.display = 'flex'; requestAnimationFrame(() => el.classList.add('open')); }
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.remove('open'); setTimeout(() => { if (!el.classList.contains('open')) el.style.display = 'none'; }, 200); }
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) { return escHtml(str); }
+function initials(name) {
+  return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+}
+function getTodayDate() {
+  const d = new Date();
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+(function(){
+  const html = document.documentElement;
+  const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+  html.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  render();
+})();
+</script>
+</body>
+</html>
