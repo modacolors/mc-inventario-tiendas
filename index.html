@@ -276,12 +276,15 @@ const SUPABASE_KEY = 'sb_publishable_VFic4AI_wjK2fgoo7tnTPw_OtXW2wya';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
-// Passwords
-const STORE_KEYS = {
-  'MCol@r$': 'Tienda',
-};
-const ADMIN_PASS = 'Administrador26.';
 let currentStore = null;
+let currentUserRole = null; // 'tienda' | 'admin'
+
+async function validateAccess(typedKey) {
+  const { data: result, error } = await _supabase.rpc('check_access_key', { key_to_check: typedKey });
+  if (!error && result && result.length > 0) return result[0];
+  return null;
+}
+
 
 // Data (in-memory)
 let data = {
@@ -580,16 +583,20 @@ function attachEvents() {
   const loginBtn = document.getElementById('loginBtn');
   const storeKey = document.getElementById('storeKey');
   if (loginBtn) {
-    const doLogin = () => {
+    const doLogin = async () => {
       const key = storeKey.value.trim();
-      if (STORE_KEYS[key]) {
-        currentStore = STORE_KEYS[key];
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Verificando...';
+      const access = await validateAccess(key);
+      if (access) {
+        currentStore = access.label;
+        currentUserRole = access.role;
         state.view = 'home';
         render();
       } else {
         document.getElementById('loginError').classList.add('show');
-        storeKey.value = '';
-        storeKey.focus();
+        storeKey.value = ''; storeKey.focus();
+        loginBtn.disabled = false; loginBtn.textContent = 'Ingresar';
       }
     };
     loginBtn.addEventListener('click', doLogin);
@@ -657,8 +664,11 @@ function attachEvents() {
   if (closeAdmin) closeAdmin.addEventListener('click', () => closeModal('adminModal'));
   if (cancelAdmin) cancelAdmin.addEventListener('click', () => closeModal('adminModal'));
   if (confirmAdmin) {
-    const doAdmin = () => {
-      if (adminPass.value === ADMIN_PASS) {
+    const doAdmin = async () => {
+      const pass = adminPass.value.trim();
+      confirmAdmin.disabled = true;
+      const access = await validateAccess(pass);
+      if (access && access.role === 'admin') {
         closeModal('adminModal');
         state.view = 'admin';
         state.adminTab = 'suppliers';
@@ -666,6 +676,7 @@ function attachEvents() {
       } else {
         document.getElementById('adminError').classList.add('show');
         adminPass.value = ''; adminPass.focus();
+        confirmAdmin.disabled = false;
       }
     };
     confirmAdmin.addEventListener('click', doAdmin);
