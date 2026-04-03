@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* ===== TOKENS ===== */
 :root, [data-theme="light"] {
@@ -267,6 +268,14 @@ let state = {
   editingAnnouncement: null,
 };
 
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://etwmbnzwypohbgzuftde.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VFic4AI_wjK2fgoo7tnTPw_OtXW2wya';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
 // Passwords
 const STORE_KEYS = {
   '1234': 'Tienda',
@@ -276,31 +285,18 @@ let currentStore = null;
 
 // Data (in-memory)
 let data = {
-  suppliers: [
-    { id: 1, name: 'Prokpil', products: `ACTIVADOR DE BRILLO SERUM ARGAN 60ML (0)
-ACONDICIONADOR REPARADOR 300ML (0)
-KERATINA LÍQUIDA PROFESIONAL 200ML (0)
-MASCARILLA NUTRITIVA COCONUT 250ML (0)
-SHAMPÚ RECONSTRUCTOR 400ML (0)` },
-    { id: 2, name: 'Elegance', products: `AMPOLLA ELEGANCE MATIZADORA 15ML (0)
-COLOR DIRECTO MATIZADOR VIOLETA 100G (0)
-MASCARILLA MATIZADORA SILVER 250ML (0)
-SHAMPÚ BLOND PLATINUM 300ML (0)
-TRATAMIENTO REPARADOR BOTOX 200G (0)` },
-    { id: 3, name: 'Be Natural', products: `ACEITE CAPILAR ARGÁN PURO 50ML (0)
-BRILLANTINA NUTRITIVA 100ML (0)
-CALOR PROTECTOR SPRAY TÉRMICO 150ML (0)
-CREMA DE PEINAR SIN ENJUAGUE 200ML (0)
-SERUM REPARADOR PUNTAS 30ML (0)` },
-  ],
-  announcements: [
-    { id: 1, icon: '📢', text: 'Nuevo catálogo disponible desde el 1 de abril. Recuerda actualizar tus pedidos.', date: '01/04/2026' },
-    { id: 2, icon: '⏰', text: 'Los pedidos deben realizarse antes del miércoles a las 3pm para entrega el viernes.', date: '28/03/2026' },
-  ],
+  suppliers: [],
+  announcements: [],
 };
 
-let nextSupplierId = 10;
-let nextAnnouncementId = 10;
+async function fetchData() {
+  const { data: sups, error: err1 } = await _supabase.from('suppliers').select('*').order('name');
+  const { data: anns, error: err2 } = await _supabase.from('announcements').select('*').order('created_at', { ascending: false });
+  if (!err1) data.suppliers = sups;
+  if (!err2) data.announcements = anns;
+  render();
+}
+
 
 // ============================================================
 // RENDER ENGINE
@@ -709,8 +705,7 @@ function attachEvents() {
     btn.addEventListener('click', () => {
       const id = parseInt(btn.dataset.deleteSupplier);
       if (confirm('¿Eliminar este proveedor?')) {
-        data.suppliers = data.suppliers.filter(s => s.id !== id);
-        render();
+        _supabase.from('suppliers').delete().eq('id', id).then(() => fetchData());
       }
     });
   });
@@ -722,13 +717,14 @@ function attachEvents() {
     const products = document.getElementById('supplierProducts').value.trim();
     if (!name) { alert('El nombre del proveedor es obligatorio.'); return; }
     if (state.editingSupplier) {
-      const s = data.suppliers.find(x => x.id === state.editingSupplier.id);
-      if (s) { s.name = name; s.products = products; }
+      _supabase.from('suppliers').update({ name, products }).eq('id', state.editingSupplier.id).then(() => {
+        state.editingSupplier = null; fetchData();
+      });
     } else {
-      data.suppliers.push({ id: nextSupplierId++, name, products });
+      _supabase.from('suppliers').insert([{ name, products }]).then(() => {
+        state.editingSupplier = null; fetchData();
+      });
     }
-    state.editingSupplier = null;
-    render();
   });
 
   const closeSupplierModal = document.getElementById('closeSupplierModal');
@@ -762,8 +758,7 @@ function attachEvents() {
     btn.addEventListener('click', () => {
       const id = parseInt(btn.dataset.deleteAnnouncement);
       if (confirm('¿Eliminar este comunicado?')) {
-        data.announcements = data.announcements.filter(a => a.id !== id);
-        render();
+        _supabase.from('announcements').delete().eq('id', id).then(() => fetchData());
       }
     });
   });
@@ -776,13 +771,14 @@ function attachEvents() {
     const date = document.getElementById('announcementDate').value.trim();
     if (!text) { alert('El mensaje es obligatorio.'); return; }
     if (state.editingAnnouncement) {
-      const a = data.announcements.find(x => x.id === state.editingAnnouncement.id);
-      if (a) { a.icon = icon_; a.text = text; a.date = date; }
+      _supabase.from('announcements').update({ icon: icon_, text, date }).eq('id', state.editingAnnouncement.id).then(() => {
+        state.editingAnnouncement = null; fetchData();
+      });
     } else {
-      data.announcements.push({ id: nextAnnouncementId++, icon: icon_, text, date });
+      _supabase.from('announcements').insert([{ icon: icon_, text, date }]).then(() => {
+        state.editingAnnouncement = null; fetchData();
+      });
     }
-    state.editingAnnouncement = null;
-    render();
   });
 
   const closeAnnouncementModal = document.getElementById('closeAnnouncementModal');
@@ -824,7 +820,7 @@ function getTodayDate() {
   const html = document.documentElement;
   const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
   html.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  render();
+  fetchData();
 })();
 </script>
 </body>
