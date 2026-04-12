@@ -832,10 +832,15 @@ function attachEvents() {
   
     // Delete submission
     document.querySelectorAll('[data-delete-submission]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = parseInt(btn.dataset.deleteSubmission);
         if (confirm('¿Eliminar este reporte de inventario permanentemente?')) {
-          _supabase.from('inventory_submissions').delete().eq('id', id).then(() => fetchData());
+          const { error } = await _supabase.from('inventory_submissions').delete().eq('id', id);
+          if (error) {
+            alert('Error al eliminar: ' + error.message);
+          } else {
+            fetchData();
+          }
         }
       });
     });
