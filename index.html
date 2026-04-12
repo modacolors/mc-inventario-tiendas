@@ -477,7 +477,10 @@ function renderAdmin() {
     <div class="admin-list-item" style="flex-direction:column; align-items:flex-start; font-size:var(--text-sm)">
       <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:4px;">
         <strong>Tienda: ${escHtml(sub.store_name)}</strong>
-        <span style="color:var(--color-text-muted);font-size:var(--text-xs)">${new Date(sub.created_at).toLocaleString()}</span>
+        <div style="display:flex;align-items:center;gap:var(--space-2);">
+          <span style="color:var(--color-text-muted);font-size:var(--text-xs)">${new Date(sub.created_at).toLocaleString()}</span>
+          <button class="btn btn-ghost btn-sm" style="color:var(--color-error);padding:2px;" data-delete-submission="${sub.id}" aria-label="Eliminar inventario">${icon.trash}</button>
+        </div>
       </div>
       <div style="color:var(--color-primary);margin-bottom:8px;font-weight:600;">Proveedor: ${escHtml(sub.supplier_name)}</div>
       <div style="white-space:pre-wrap;background:var(--color-surface-offset);padding:var(--space-2);border-radius:var(--radius-sm);width:100%;">${escHtml(sub.content)}</div>
@@ -818,14 +821,24 @@ function attachEvents() {
   });
 
   // Delete supplier
-  document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = parseInt(btn.dataset.deleteSupplier);
-      if (confirm('¿Eliminar este proveedor?')) {
-        _supabase.from('suppliers').delete().eq('id', id).then(() => fetchData());
-      }
+    document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.deleteSupplier);
+        if (confirm('¿Eliminar este proveedor?')) {
+          _supabase.from('suppliers').delete().eq('id', id).then(() => fetchData());
+        }
+      });
     });
-  });
+  
+    // Delete submission
+    document.querySelectorAll('[data-delete-submission]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.deleteSubmission);
+        if (confirm('¿Eliminar este reporte de inventario permanentemente?')) {
+          _supabase.from('inventory_submissions').delete().eq('id', id).then(() => fetchData());
+        }
+      });
+    });
 
   // Supplier modal save
   const saveSupplierBtn = document.getElementById('saveSupplierBtn');
