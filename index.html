@@ -153,6 +153,13 @@ a, button, [role="button"] { transition: color var(--transition), background var
   word-break: break-word; min-height: 120px; color: var(--color-text);
   margin-bottom: var(--space-3); box-shadow: var(--shadow-sm);
 }
+.product-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-2) 0; border-bottom: 1px dashed var(--color-divider); }
+.product-item:last-child { border-bottom: none; }
+.product-name { flex: 1; font-size: var(--text-sm); line-height: 1.3; }
+.product-qty { width: 60px; text-align: center; padding: var(--space-2); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); font-size: var(--text-sm); }
+.product-qty:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px oklch(from var(--color-primary) l c h / 0.15); }
 .copy-feedback { font-size: var(--text-xs); color: var(--color-success); text-align: center;
   height: 20px; transition: opacity var(--transition); opacity: 0; }
 .copy-feedback.show { opacity: 1; }
@@ -290,13 +297,16 @@ async function validateAccess(typedKey) {
 let data = {
   suppliers: [],
   announcements: [],
+  inventory_submissions: [],
 };
 
 async function fetchData() {
   const { data: sups, error: err1 } = await _supabase.from('suppliers').select('*').order('name');
   const { data: anns, error: err2 } = await _supabase.from('announcements').select('*').order('created_at', { ascending: false });
+  const { data: subs } = await _supabase.from('inventory_submissions').select('*').order('created_at', { ascending: false }).limit(50);
   if (!err1) data.suppliers = sups;
   if (!err2) data.announcements = anns;
+  if (subs) data.inventory_submissions = subs;
   render();
 }
 
@@ -317,6 +327,7 @@ function render() {
 // ICONS
 // ============================================================
 const icon = {
+  mail: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
   logo: `<span class="logo-text">MODACOLORS</span>`,
   sun: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
   moon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
@@ -394,6 +405,27 @@ function renderHome() {
 function renderSupplier() {
   const s = data.suppliers.find(x => x.id === state.selectedSupplier);
   if (!s) { state.view = 'home'; return renderHome(); }
+  
+  const productsLines = (s.products || '').split('\n');
+  const renderedProducts = productsLines.map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('(0)')) {
+      const parts = trimmed.split('(0)');
+      return `
+        <div class="product-item">
+          <span class="product-name">${escHtml(parts[0].trim())}</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="number" class="product-qty" data-index="${i}" min="0" placeholder="0">
+            ${parts[1] ? `<span>${escHtml(parts[1])}</span>` : ''}
+          </div>
+        </div>
+      `;
+    } else {
+      return `<div class="product-item"><span class="product-name">${escHtml(trimmed)}</span></div>`;
+    }
+  }).join('');
+
   return `
   <div id="app">
     ${renderHeader()}
@@ -404,10 +436,14 @@ function renderSupplier() {
       <div class="template-section">
         <div class="template-header">
           <h2 class="template-title">${escHtml(s.name)}</h2>
-          <button class="btn btn-primary btn-sm" id="copyBtn">${icon.copy} Copiar plantilla</button>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="copyBtn">${icon.copy} Copiar y Reportar</button>
+          </div>
         </div>
-        <div class="template-box" id="templateBox">${escHtml(s.products)}</div>
-        <div class="copy-feedback" id="copyFeedback">✓ Plantilla copiada. ¡Pégala en WhatsApp!</div>
+        <div class="template-box" id="templateBox" style="padding:var(--space-2) var(--space-4);">
+          ${renderedProducts}
+        </div>
+        <div class="copy-feedback" id="copyFeedback">✓ Copiado y reportado.</div>
       </div>
     </main>
   </div>
@@ -416,6 +452,9 @@ function renderSupplier() {
 
 function renderAdmin() {
   const isSupplierTab = state.adminTab === 'suppliers';
+  const isAnnouncementTab = state.adminTab === 'announcements';
+  const isSubmissionTab = state.adminTab === 'submissions';
+  
   const supplierList = data.suppliers.map(s => `
     <div class="admin-list-item">
       <span class="admin-list-item-name">${escHtml(s.name)}</span>
@@ -434,6 +473,16 @@ function renderAdmin() {
       </div>
     </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin comunicados aún.</p>';
 
+  const submissionList = (data.inventory_submissions || []).map(sub => `
+    <div class="admin-list-item" style="flex-direction:column; align-items:flex-start; font-size:var(--text-sm)">
+      <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:4px;">
+        <strong>Tienda: ${escHtml(sub.store_name)}</strong>
+        <span style="color:var(--color-text-muted);font-size:var(--text-xs)">${new Date(sub.created_at).toLocaleString()}</span>
+      </div>
+      <div style="color:var(--color-primary);margin-bottom:8px;font-weight:600;">Proveedor: ${escHtml(sub.supplier_name)}</div>
+      <div style="white-space:pre-wrap;background:var(--color-surface-offset);padding:var(--space-2);border-radius:var(--radius-sm);width:100%;">${escHtml(sub.content)}</div>
+    </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin inventarios reportados aún.</p>';
+
   return `
   <div id="app">
     ${renderHeader(true)}
@@ -444,7 +493,8 @@ function renderAdmin() {
       <h2 class="template-title" style="margin-bottom:var(--space-4)">Administración</h2>
       <div class="tabs">
         <button class="tab-btn ${isSupplierTab ? 'active' : ''}" data-admin-tab="suppliers">Proveedores</button>
-        <button class="tab-btn ${!isSupplierTab ? 'active' : ''}" data-admin-tab="announcements">Comunicados</button>
+        <button class="tab-btn ${isAnnouncementTab ? 'active' : ''}" data-admin-tab="announcements">Comunicados</button>
+        <button class="tab-btn ${isSubmissionTab ? 'active' : ''}" data-admin-tab="submissions">Buzón Inventarios</button>
       </div>
       ${isSupplierTab ? `
       <div class="admin-section">
@@ -452,13 +502,18 @@ function renderAdmin() {
           <button class="btn btn-primary btn-sm" id="addSupplierBtn">${icon.add} Nuevo proveedor</button>
         </div>
         <div class="admin-list">${supplierList}</div>
-      </div>` : `
+      </div>` : ''}
+      ${isAnnouncementTab ? `
       <div class="admin-section">
         <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-3)">
           <button class="btn btn-primary btn-sm" id="addAnnouncementBtn">${icon.add} Nuevo comunicado</button>
         </div>
         <div class="admin-list">${announcementList}</div>
-      </div>`}
+      </div>` : ''}
+      ${isSubmissionTab ? `
+      <div class="admin-section">
+        <div class="admin-list">${submissionList}</div>
+      </div>` : ''}
     </main>
   </div>
   ${renderSupplierModal()}
@@ -627,25 +682,76 @@ function attachEvents() {
     render();
   });
 
+  // List compilation helper
+  const getCompiledText = () => {
+    const s = data.suppliers.find(x => x.id === state.selectedSupplier);
+    if (!s) return '';
+    let resultText = `📦 *INVENTARIO: ${s.name.toUpperCase()}*\n`;
+    resultText += `🏪 *TIENDA:* ${currentStore || 'No identificada'}\n`;
+    resultText += `📅 *FECHA:* ${new Date().toLocaleDateString()}\n`;
+    resultText += `--------------------------\n\n`;
+    
+    const lines = (s.products || '').split('\n');
+    lines.forEach((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      if (trimmed.includes('(0)')) {
+        const input = document.querySelector(`.product-qty[data-index="${i}"]`);
+        const val = input && input.value ? input.value : '0';
+        resultText += trimmed.replace('(0)', `(${val})`) + '\n';
+      } else {
+        resultText += trimmed + '\n';
+      }
+    });
+    return resultText.trim();
+  };
+
   // Copy button
   const copyBtn = document.getElementById('copyBtn');
   if (copyBtn) copyBtn.addEventListener('click', () => {
     const s = data.suppliers.find(x => x.id === state.selectedSupplier);
-    if (!s) return;
-    const text = s.products;
+    const text = getCompiledText();
+    if (!text || !s) return;
+    
+    // Save to Supabase DB
+    _supabase.from('inventory_submissions').insert([
+       { store_name: currentStore || 'Tienda', supplier_name: s.name, content: text }
+    ]).then(() => fetchData());
+    
+    // Send background email using formsubmit free AJAX API
+    const emailPayload = {
+      _subject: `📦 Inventario: ${s.name} - Tienda ${currentStore || '?'}`,
+      _template: 'table',
+      "Tienda": currentStore || 'Desconocida',
+      "Proveedor": s.name,
+      "Inventario": text
+    };
+
+    fetch('https://formsubmit.co/ajax/admon.modacolors@gmail.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(emailPayload)
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Error al enviar correo');
+      return response.json();
+    })
+    .then(data => {
+      console.log('Correo enviado:', data);
+      if (data.success === 'false') {
+        alert('Atención: El reporte se guardó en el panel pero el servicio de correos aún no está activado. Favor contactar a soporte.');
+      }
+    })
+    .catch(err => {
+      console.error('Error FormSubmit:', err);
+      // No bloqueamos al usuario con alertas intrusivas si es un error de conexió ligera
+    });
+
     navigator.clipboard.writeText(text).then(() => {
       const fb = document.getElementById('copyFeedback');
+      fb.textContent = '✓ Copiado al portapapeles y Reportado a Administración.';
       fb.classList.add('show');
-      setTimeout(() => fb.classList.remove('show'), 3000);
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      const fb = document.getElementById('copyFeedback');
-      fb.classList.add('show');
-      setTimeout(() => fb.classList.remove('show'), 3000);
+      setTimeout(() => fb.classList.remove('show'), 4000);
     });
   });
 
