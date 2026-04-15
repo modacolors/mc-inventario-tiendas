@@ -270,9 +270,10 @@ a, button, [role="button"] { transition: color var(--transition), background var
 let state = {
   view: 'login', // login | home | supplier | admin
   selectedSupplier: null,
-  adminTab: 'suppliers', // suppliers | announcements
+  adminTab: 'suppliers', // suppliers | announcements | keys
   editingSupplier: null,
   editingAnnouncement: null,
+  editingKey: null,
 };
 
 // ============================================================
@@ -298,15 +299,18 @@ let data = {
   suppliers: [],
   announcements: [],
   inventory_submissions: [],
+  access_keys: [],
 };
 
 async function fetchData() {
   const { data: sups, error: err1 } = await _supabase.from('suppliers').select('*').order('name');
   const { data: anns, error: err2 } = await _supabase.from('announcements').select('*').order('created_at', { ascending: false });
   const { data: subs } = await _supabase.from('inventory_submissions').select('*').order('created_at', { ascending: false }).limit(50);
+  const { data: keys } = await _supabase.from('access_control').select('*').order('label');
   if (!err1) data.suppliers = sups;
   if (!err2) data.announcements = anns;
   if (subs) data.inventory_submissions = subs;
+  if (keys) data.access_keys = keys;
   render();
 }
 
@@ -438,10 +442,21 @@ function renderSupplier() {
           <h2 class="template-title">${escHtml(s.name)}</h2>
           <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" id="copyBtn">${icon.copy} Copiar y Reportar</button>
+            <button class="btn btn-secondary btn-sm" id="loadLastBtn" title="Cargar último inventario enviado">↩ Último</button>
+            <button class="btn btn-secondary btn-sm" id="clearBtn" title="Limpiar todos los campos">🗑 Limpiar</button>
           </div>
         </div>
         <div class="template-box" id="templateBox" style="padding:var(--space-2) var(--space-4);">
           ${renderedProducts}
+        </div>
+        <div class="divider"></div>
+        <div class="form-group">
+          <label class="form-label" for="realizadoPor">Realizado por <span style="color:var(--color-error)">*</span></label>
+          <input id="realizadoPor" class="form-input" type="text" placeholder="Nombre de quien realiza el inventario" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="observacion">Observación</label>
+          <textarea id="observacion" class="form-textarea" style="min-height:80px" placeholder="Escribe alguna observación o novedad (opcional)"></textarea>
         </div>
         <div class="copy-feedback" id="copyFeedback">✓ Copiado y reportado.</div>
       </div>
@@ -454,6 +469,7 @@ function renderAdmin() {
   const isSupplierTab = state.adminTab === 'suppliers';
   const isAnnouncementTab = state.adminTab === 'announcements';
   const isSubmissionTab = state.adminTab === 'submissions';
+  const isKeysTab = state.adminTab === 'keys';
   
   const supplierList = data.suppliers.map(s => `
     <div class="admin-list-item">
@@ -486,6 +502,27 @@ function renderAdmin() {
       <div style="white-space:pre-wrap;background:var(--color-surface-offset);padding:var(--space-2);border-radius:var(--radius-sm);width:100%;">${escHtml(sub.content)}</div>
     </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin inventarios reportados aún.</p>';
 
+  const keysList = (data.access_keys || []).map(k => {
+    const masked = k.access_key.length > 3 ? k.access_key.substring(0, 3) + '•'.repeat(k.access_key.length - 3) : '•••';
+    const roleBadge = k.access_role === 'admin'
+      ? '<span class="badge" style="background:color-mix(in oklch, var(--color-warning) 15%, var(--color-surface));color:var(--color-warning)">admin</span>'
+      : '<span class="badge badge-success">tienda</span>';
+    return `
+    <div class="admin-list-item">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:2px;">
+          <span style="font-weight:600;font-size:var(--text-sm)">${escHtml(k.label)}</span>
+          ${roleBadge}
+        </div>
+        <span style="font-size:var(--text-xs);color:var(--color-text-muted);font-family:monospace">${escHtml(masked)}</span>
+      </div>
+      <div class="admin-item-actions">
+        <button class="btn btn-ghost btn-sm" data-edit-key="${k.id}" aria-label="Editar clave">${icon.edit}</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--color-error)" data-delete-key="${k.id}" aria-label="Eliminar clave">${icon.trash}</button>
+      </div>
+    </div>`;
+  }).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin claves configuradas.</p>';
+
   return `
   <div id="app">
     ${renderHeader(true)}
@@ -498,6 +535,7 @@ function renderAdmin() {
         <button class="tab-btn ${isSupplierTab ? 'active' : ''}" data-admin-tab="suppliers">Proveedores</button>
         <button class="tab-btn ${isAnnouncementTab ? 'active' : ''}" data-admin-tab="announcements">Comunicados</button>
         <button class="tab-btn ${isSubmissionTab ? 'active' : ''}" data-admin-tab="submissions">Buzón Inventarios</button>
+        <button class="tab-btn ${isKeysTab ? 'active' : ''}" data-admin-tab="keys">Claves</button>
       </div>
       ${isSupplierTab ? `
       <div class="admin-section">
@@ -517,10 +555,18 @@ function renderAdmin() {
       <div class="admin-section">
         <div class="admin-list">${submissionList}</div>
       </div>` : ''}
+      ${isKeysTab ? `
+      <div class="admin-section">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-3)">
+          <button class="btn btn-primary btn-sm" id="addKeyBtn">${icon.add} Nueva clave</button>
+        </div>
+        <div class="admin-list">${keysList}</div>
+      </div>` : ''}
     </main>
   </div>
   ${renderSupplierModal()}
   ${renderAnnouncementModal()}
+  ${renderKeyModal()}
   ${renderAdminLoginModal()}`;
 }
 
@@ -565,6 +611,40 @@ function renderAdminModal() {
 }
 
 function renderAdminLoginModal() { return ''; }
+
+function renderKeyModal() {
+  const k = state.editingKey;
+  const isEdit = !!k;
+  return `
+  <div class="modal-overlay" id="keyModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <h3 class="modal-title" style="margin:0">${isEdit ? 'Editar clave' : 'Nueva clave'}</h3>
+        <button class="btn-ghost" id="closeKeyModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="keyLabel">Nombre / Etiqueta</label>
+        <input id="keyLabel" class="form-input" type="text" placeholder="Ej: Feria" value="${isEdit ? escAttr(k.label) : ''}" maxlength="40">
+        <div class="form-hint">Nombre que identifica la tienda o usuario.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="keyValue">Clave de acceso</label>
+        <input id="keyValue" class="form-input" type="text" placeholder="Ej: MC-Feria" value="${isEdit ? escAttr(k.access_key) : ''}" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="keyRole">Rol</label>
+        <select id="keyRole" class="form-input">
+          <option value="tienda" ${isEdit && k.access_role === 'tienda' ? 'selected' : ''}>Tienda</option>
+          <option value="admin" ${isEdit && k.access_role === 'admin' ? 'selected' : ''}>Administrador</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="cancelKeyModal">Cancelar</button>
+        <button class="btn btn-primary" id="saveKeyBtn">${isEdit ? 'Guardar cambios' : 'Crear clave'}</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderSupplierModal() {
   const s = state.editingSupplier;
@@ -689,8 +769,11 @@ function attachEvents() {
   const getCompiledText = () => {
     const s = data.suppliers.find(x => x.id === state.selectedSupplier);
     if (!s) return '';
+    const realizadoPor = (document.getElementById('realizadoPor')?.value || '').trim();
+    const observacion = (document.getElementById('observacion')?.value || '').trim();
     let resultText = `📦 *INVENTARIO: ${s.name.toUpperCase()}*\n`;
     resultText += `🏪 *TIENDA:* ${currentStore || 'No identificada'}\n`;
+    resultText += `👤 *REALIZADO POR:* ${realizadoPor || 'No indicado'}\n`;
     resultText += `📅 *FECHA:* ${new Date().toLocaleDateString()}\n`;
     resultText += `--------------------------\n\n`;
     
@@ -706,6 +789,9 @@ function attachEvents() {
         resultText += trimmed + '\n';
       }
     });
+    if (observacion) {
+      resultText += `\n📝 *OBSERVACIÓN:* ${observacion}\n`;
+    }
     return resultText.trim();
   };
 
@@ -713,8 +799,31 @@ function attachEvents() {
   const copyBtn = document.getElementById('copyBtn');
   if (copyBtn) copyBtn.addEventListener('click', () => {
     const s = data.suppliers.find(x => x.id === state.selectedSupplier);
+    const realizadoPorInput = document.getElementById('realizadoPor');
+    if (realizadoPorInput && !realizadoPorInput.value.trim()) {
+      alert('El campo "Realizado por" es obligatorio.');
+      realizadoPorInput.focus();
+      return;
+    }
     const text = getCompiledText();
     if (!text || !s) return;
+
+    // Confirmación antes de enviar
+    if (!confirm(`¿Estás seguro de enviar el inventario de "${s.name}"?`)) return;
+
+    // Guardar valores en localStorage antes de enviar
+    const saveKey = `inv_${state.selectedSupplier}_${currentStore}`;
+    const savedValues = {};
+    document.querySelectorAll('.product-qty').forEach(input => {
+      savedValues[input.dataset.index] = input.value;
+    });
+    savedValues._realizadoPor = document.getElementById('realizadoPor')?.value || '';
+    savedValues._observacion = document.getElementById('observacion')?.value || '';
+    localStorage.setItem(saveKey, JSON.stringify(savedValues));
+
+    // Deshabilitar botón para evitar envíos duplicados
+    copyBtn.disabled = true;
+    copyBtn.innerHTML = '⏳ Enviando...';
     
     // Save to Supabase DB
     _supabase.from('inventory_submissions').insert([
@@ -747,15 +856,55 @@ function attachEvents() {
     })
     .catch(err => {
       console.error('Error FormSubmit:', err);
-      // No bloqueamos al usuario con alertas intrusivas si es un error de conexió ligera
     });
 
     navigator.clipboard.writeText(text).then(() => {
       const fb = document.getElementById('copyFeedback');
       fb.textContent = '✓ Copiado al portapapeles y Reportado a Administración.';
       fb.classList.add('show');
-      setTimeout(() => fb.classList.remove('show'), 4000);
+      copyBtn.innerHTML = '✓ Enviado';
+      // Rehabilitar después de 10 segundos por si necesita reenviar
+      setTimeout(() => {
+        fb.classList.remove('show');
+        copyBtn.disabled = false;
+        copyBtn.innerHTML = `${icon.copy} Copiar y Reportar`;
+      }, 10000);
     });
+  });
+
+  // Cargar último inventario
+  const loadLastBtn = document.getElementById('loadLastBtn');
+  if (loadLastBtn) loadLastBtn.addEventListener('click', () => {
+    const saveKey = `inv_${state.selectedSupplier}_${currentStore}`;
+    const saved = localStorage.getItem(saveKey);
+    if (!saved) { alert('No hay un inventario previo guardado para este proveedor.'); return; }
+    const vals = JSON.parse(saved);
+    document.querySelectorAll('.product-qty').forEach(input => {
+      if (vals[input.dataset.index] !== undefined) input.value = vals[input.dataset.index];
+    });
+    const rp = document.getElementById('realizadoPor');
+    const obs = document.getElementById('observacion');
+    if (rp && vals._realizadoPor) rp.value = vals._realizadoPor;
+    if (obs && vals._observacion) obs.value = vals._observacion;
+    const fb = document.getElementById('copyFeedback');
+    fb.textContent = '↩ Último inventario cargado.';
+    fb.classList.add('show');
+    setTimeout(() => fb.classList.remove('show'), 3000);
+  });
+
+  // Limpiar inventario
+  const clearBtn = document.getElementById('clearBtn');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if (!confirm('¿Limpiar todos los campos del inventario?')) return;
+    document.querySelectorAll('.product-qty').forEach(input => { input.value = ''; });
+    const rp = document.getElementById('realizadoPor');
+    const obs = document.getElementById('observacion');
+    if (rp) rp.value = '';
+    if (obs) obs.value = '';
+    const fb = document.getElementById('copyFeedback');
+    fb.textContent = '🗑 Inventario limpiado.';
+    fb.classList.add('show');
+    setTimeout(() => fb.classList.remove('show'), 3000);
   });
 
   // Admin button
@@ -923,6 +1072,64 @@ function attachEvents() {
 
   const announcementModal = document.getElementById('announcementModal');
   if (announcementModal) announcementModal.addEventListener('click', e => { if (e.target === announcementModal) { state.editingAnnouncement = null; render(); } });
+
+  // ---- ACCESS KEYS ----
+  // Add key
+  const addKeyBtn = document.getElementById('addKeyBtn');
+  if (addKeyBtn) addKeyBtn.addEventListener('click', () => {
+    state.editingKey = null; render();
+    openModal('keyModal');
+    setTimeout(() => document.getElementById('keyLabel')?.focus(), 50);
+  });
+
+  // Edit key
+  document.querySelectorAll('[data-edit-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.editKey);
+      state.editingKey = data.access_keys.find(k => k.id === id);
+      render();
+      openModal('keyModal');
+      setTimeout(() => document.getElementById('keyLabel')?.focus(), 50);
+    });
+  });
+
+  // Delete key
+  document.querySelectorAll('[data-delete-key]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = parseInt(btn.dataset.deleteKey);
+      const key = data.access_keys.find(k => k.id === id);
+      if (!key) return;
+      if (!confirm(`¿Eliminar la clave de "${key.label}"? Esta acción no se puede deshacer.`)) return;
+      const { error } = await _supabase.from('access_control').delete().eq('id', id);
+      if (error) { alert('Error: ' + error.message); } else { fetchData(); }
+    });
+  });
+
+  // Save key
+  const saveKeyBtn = document.getElementById('saveKeyBtn');
+  if (saveKeyBtn) saveKeyBtn.addEventListener('click', async () => {
+    const label = document.getElementById('keyLabel').value.trim();
+    const access_key = document.getElementById('keyValue').value.trim();
+    const access_role = document.getElementById('keyRole').value;
+    if (!label) { alert('El nombre es obligatorio.'); return; }
+    if (!access_key) { alert('La clave de acceso es obligatoria.'); return; }
+    if (state.editingKey) {
+      const { error } = await _supabase.from('access_control').update({ label, access_key, access_role }).eq('id', state.editingKey.id);
+      if (error) { alert('Error: ' + error.message); return; }
+    } else {
+      const { error } = await _supabase.from('access_control').insert([{ label, access_key, access_role }]);
+      if (error) { alert('Error: ' + error.message); return; }
+    }
+    state.editingKey = null; fetchData();
+  });
+
+  const closeKeyModal = document.getElementById('closeKeyModal');
+  const cancelKeyModal = document.getElementById('cancelKeyModal');
+  if (closeKeyModal) closeKeyModal.addEventListener('click', () => { state.editingKey = null; render(); });
+  if (cancelKeyModal) cancelKeyModal.addEventListener('click', () => { state.editingKey = null; render(); });
+
+  const keyModal = document.getElementById('keyModal');
+  if (keyModal) keyModal.addEventListener('click', e => { if (e.target === keyModal) { state.editingKey = null; render(); } });
 }
 
 // ============================================================
