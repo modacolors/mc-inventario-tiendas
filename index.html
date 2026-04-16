@@ -772,9 +772,9 @@ function renderHeader(isAdmin = false) {
       <div style="display:flex; flex-direction:column;">
         <span style="color:var(--color-primary)">${icon.logo}</span>
         <div class="brand-name" style="font-size:0.8rem; opacity:0.8; margin-top:-2px;">Catálogo</div>
+        ${currentStore && state.view !== 'login' ? `<div style="font-size:0.8rem; font-weight:700; color:var(--color-text); margin-top:-1px;">📍 ${escHtml(currentStore)}</div>` : ''}
       </div>
     </div>
-    ${currentStore && state.view !== 'login' ? `<div style="font-weight:800; font-size:1.05rem; color:var(--color-text); margin-right:var(--space-2); white-space:nowrap;">${escHtml(currentStore)}</div>` : ''}
     <div class="header-actions">
       <button class="btn-ghost" data-theme-toggle aria-label="Cambiar tema">${isDark ? icon.sun : icon.moon}</button>
       ${!isAdmin && state.view !== 'login' ? `<button class="btn btn-secondary btn-sm" id="depositoBtn">Depósito</button> <button class="btn btn-secondary btn-sm" id="adminBtn">${icon.admin} Admin</button>` : ''}
