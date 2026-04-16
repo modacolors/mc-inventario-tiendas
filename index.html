@@ -289,7 +289,8 @@ let currentStore = localStorage.getItem('currentStore') || null;
 let currentUserRole = localStorage.getItem('currentUserRole') || null; // 'tienda' | 'admin'
 let originalStore = localStorage.getItem('originalStore') || null;
 let originalRole = localStorage.getItem('originalRole') || null;
-let pedidoCart = JSON.parse(localStorage.getItem('pedidoCart') || '[]');
+function getCartKey() { return 'pedidoCart_' + (currentStore || 'guest'); }
+let pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
 
 async function validateAccess(typedKey) {
   const { data: result, error } = await _supabase.rpc('check_access_key', { key_to_check: typedKey });
@@ -925,6 +926,7 @@ function attachEvents() {
         currentUserRole = access.role;
         localStorage.setItem('currentStore', currentStore);
         localStorage.setItem('currentUserRole', currentUserRole);
+        pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
         state.view = 'home';
         render();
       } else {
@@ -949,6 +951,7 @@ function attachEvents() {
     localStorage.removeItem('currentUserRole');
     localStorage.removeItem('originalStore');
     localStorage.removeItem('originalRole');
+    pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
     state.view = 'login'; 
     render();
   });
@@ -990,6 +993,7 @@ function attachEvents() {
         localStorage.removeItem('originalRole');
         originalStore = null;
         originalRole = null;
+        pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
         state.view = 'home';
      } else {
         currentStore = null;
@@ -1000,6 +1004,7 @@ function attachEvents() {
         localStorage.removeItem('currentUserRole');
         localStorage.removeItem('originalStore');
         localStorage.removeItem('originalRole');
+        pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
         state.view = 'login';
      }
      render();
@@ -1236,6 +1241,7 @@ function attachEvents() {
           localStorage.setItem('originalRole', originalRole || '');
           localStorage.setItem('currentStore', currentStore);
           localStorage.setItem('currentUserRole', currentUserRole);
+          pedidoCart = JSON.parse(localStorage.getItem(getCartKey()) || '[]');
           state.view = 'deposito';
           render();
        } else {
@@ -1506,7 +1512,7 @@ window.addToCart = function() {
       return;
     }
     
-    localStorage.setItem('pedidoCart', JSON.stringify(pedidoCart));
+    localStorage.setItem(getCartKey(), JSON.stringify(pedidoCart));
     alert('✅ Añadido al carrito con éxito.');
     state.pedidoSupplierId = null;
     render();
@@ -1515,7 +1521,7 @@ window.addToCart = function() {
 window.removeFromCart = function(index) {
     if (confirm('¿Eliminar este producto del carrito?')) {
         pedidoCart.splice(index, 1);
-        localStorage.setItem('pedidoCart', JSON.stringify(pedidoCart));
+        localStorage.setItem(getCartKey(), JSON.stringify(pedidoCart));
         if (pedidoCart.length === 0) state.view = 'pedidos';
         render();
     }
@@ -1580,7 +1586,7 @@ window.submitCart = async function() {
     } else {
        alert('✓ Pedido completado y enviado con éxito.');
        pedidoCart = [];
-       localStorage.removeItem('pedidoCart');
+       localStorage.removeItem(getCartKey());
        state.view = 'home';
        fetchData(); // This will re-render
     }
