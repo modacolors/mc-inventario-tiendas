@@ -32,8 +32,8 @@
   --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
   --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
   --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
-  --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
-  --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
+  --text-xl: clamp(1.375rem, 1.2rem + 1vw, 1.75rem);
   --font-body: 'Inter', sans-serif;
 }
 [data-theme="dark"] {
@@ -268,13 +268,14 @@ a, button, [role="button"] { transition: color var(--transition), background var
 // STATE
 // ============================================================
 let state = {
-  view: 'login', // login | home | supplier | admin
+  view: localStorage.getItem('currentStore') === 'Depósito' ? 'deposito' : (localStorage.getItem('currentStore') ? 'home' : 'login'),
   selectedSupplier: null,
-  adminTab: 'suppliers', // suppliers | announcements | keys
+  adminTab: 'suppliers', // suppliers | announcements | submissions | keys
   editingSupplier: null,
   editingAnnouncement: null,
   editingKey: null,
-};
+  pedidoSupplierId: null,
+}; // login | home | supplier | admin | pedidos | deposito | carrito
 
 // ============================================================
 // SUPABASE CONFIG
@@ -284,8 +285,11 @@ const SUPABASE_KEY = 'sb_publishable_VFic4AI_wjK2fgoo7tnTPw_OtXW2wya';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
-let currentStore = null;
-let currentUserRole = null; // 'tienda' | 'admin'
+let currentStore = localStorage.getItem('currentStore') || null;
+let currentUserRole = localStorage.getItem('currentUserRole') || null; // 'tienda' | 'admin'
+let originalStore = localStorage.getItem('originalStore') || null;
+let originalRole = localStorage.getItem('originalRole') || null;
+let pedidoCart = JSON.parse(localStorage.getItem('pedidoCart') || '[]');
 
 async function validateAccess(typedKey) {
   const { data: result, error } = await _supabase.rpc('check_access_key', { key_to_check: typedKey });
@@ -324,6 +328,9 @@ function render() {
   else if (state.view === 'home') app.innerHTML = renderHome();
   else if (state.view === 'supplier') app.innerHTML = renderSupplier();
   else if (state.view === 'admin') app.innerHTML = renderAdmin();
+  else if (state.view === 'pedidos') app.innerHTML = renderPedidos();
+  else if (state.view === 'deposito') app.innerHTML = renderDeposito();
+  else if (state.view === 'carrito') app.innerHTML = renderCarrito();
   attachEvents();
 }
 
@@ -393,17 +400,200 @@ function renderHome() {
   <div id="app">
     ${renderHeader()}
     <main class="main-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4);">
+        <h2 style="font-size:var(--text-lg);font-weight:700;">🏠 Inicio</h2>
+        <button class="btn btn-primary" id="goPedidosBtn">📦 Hacer un Pedido</button>
+      </div>
+
       ${data.announcements.length > 0 ? `
         <div class="announcements">
           <div class="section-label">Comunicados</div>
           ${announcements}
         </div>` : ''}
-      <div class="section-label">Proveedores</div>
+      <div class="section-label" style="text-align: center; color: var(--color-primary); font-size: 1rem; margin-top: var(--space-6);">PROVEEDORES / INVENTARIO</div>
       <div class="suppliers-grid">${supplierCards}</div>
       ${emptyState}
     </main>
   </div>
-  ${renderAdminModal()}`;
+  ${renderAdminModal()}
+  ${renderDepositoModal()}`;
+}
+
+function renderPedidos() {
+  const suppliersOpts = data.suppliers.map(s => `<option value="${s.id}" ${state.pedidoSupplierId == s.id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('');
+  let productsHtml = '';
+  let selSupplier = null;
+  
+  if (state.pedidoSupplierId) {
+    selSupplier = data.suppliers.find(s => s.id == state.pedidoSupplierId);
+    if (selSupplier) {
+      const lines = (selSupplier.products || '').split('\n');
+      productsHtml = lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return '';
+        if (trimmed.includes('(0)')) {
+          const parts = trimmed.split('(0)');
+          return `
+            <div class="product-item pedido-item" data-product-index="${i}">
+              <span class="product-name">${escHtml(parts[0].trim())} ${parts[1] ? escHtml(parts[1]) : ''}</span>
+              <input type="number" class="product-qty pedido-qty" data-index="${i}" min="0" placeholder="0">
+            </div>`;
+        }
+        return '';
+      }).join('');
+    }
+  }
+
+  return `
+  <div id="app">
+    ${renderHeader()}
+    <main class="main-content">
+      <div class="back-row" style="justify-content:space-between">
+        <button class="back-btn" id="backBtn">${icon.back} Inicio</button>
+        ${pedidoCart.length > 0 ? `<button class="btn btn-secondary btn-sm" onclick="state.view='carrito';render()">🛒 Carrito (${pedidoCart.length})</button>` : ''}
+      </div>
+      <h2 class="template-title" style="margin-bottom:var(--space-4)">📦 Nuevo Pedido</h2>
+      
+      <div class="form-group">
+        <label class="form-label">Selecciona el Proveedor</label>
+        <select class="form-input" id="pedidoSupplierSelect">
+          <option value="">-- Buscar o Seleccionar Proveedor --</option>
+          ${suppliersOpts}
+        </select>
+      </div>
+
+      ${selSupplier ? `
+        <div class="form-group" style="position:relative;">
+          <input type="text" class="form-input" id="pedidoSearchProduct" placeholder="🔍 Buscar producto...">
+        </div>
+        <div class="template-box" style="padding:var(--space-2) var(--space-4); max-height:400px; overflow-y:auto;" id="pedidoProductsContainer">
+          ${productsHtml || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Este proveedor no tiene productos ordenables.</p>'}
+        </div>
+        
+        <div class="form-actions" style="margin-top:var(--space-4);">
+           <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="window.addToCart()">Añadir al Carrito</button>
+        </div>
+      ` : ''}
+    </main>
+  </div>
+  ${renderAdminModal()}
+  ${renderDepositoModal()}`;
+}
+
+function renderCarrito() {
+  if (pedidoCart.length === 0) {
+    state.view = 'pedidos'; 
+    return renderPedidos(); 
+  }
+
+  const itemsHtml = pedidoCart.map((item, i) => `
+    <div class="admin-list-item" style="flex-direction:row;align-items:center;justify-content:space-between;padding:10px;font-size:var(--text-sm);">
+      <div>
+         <div style="font-size:11px;color:var(--color-primary);font-weight:600;">${escHtml(item.supplier)}</div>
+         <div style="font-size:13px;">${item.qty}x ${escHtml(item.productLine)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="color:var(--color-error);" onclick="window.removeFromCart(${i})">${icon.trash}</button>
+    </div>
+  `).join('');
+
+  return `
+  <div id="app">
+    ${renderHeader()}
+    <main class="main-content">
+      <div class="back-row">
+        <button class="back-btn" onclick="state.view='pedidos'; render();">${icon.back} Seguir Seleccionando</button>
+      </div>
+      <h2 class="template-title" style="margin-bottom:var(--space-4)">🛒 Carrito de Pedido</h2>
+      
+      <div class="template-box" style="padding:var(--space-2); margin-bottom:var(--space-4);">
+        ${itemsHtml}
+      </div>
+      
+      <div class="divider"></div>
+      <div class="form-group">
+        <label class="form-label">Realizado por <span style="color:var(--color-error)">*</span></label>
+        <input id="pedidoRealizadoPor" class="form-input" type="text" placeholder="Tu nombre" maxlength="60">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observación General</label>
+        <textarea id="pedidoObservacion" class="form-textarea" style="min-height:80px" placeholder="Alguna nota global (Opcional)..."></textarea>
+      </div>
+      <div class="form-actions" style="margin-top:var(--space-4);">
+         <button class="btn btn-primary" id="sendPedidoBtn" style="width:100%;justify-content:center;padding:12px;font-size:1.1rem;" onclick="window.submitCart()">Enviar Pedido (${pedidoCart.length} productos)</button>
+      </div>
+    </main>
+  </div>
+  ${renderAdminModal()}
+  ${renderDepositoModal()}`;
+}
+
+function renderDeposito() {
+  const pedidos = (data.inventory_submissions || []).filter(sub => sub.supplier_name.startsWith('PEDIDO: '));
+  const readPedidos = JSON.parse(localStorage.getItem('readPedidos') || '[]');
+  
+  const list = pedidos.map(sub => {
+    const provName = sub.supplier_name.replace('PEDIDO: ', '');
+    const isUnread = !readPedidos.includes(sub.id);
+    const bg = isUnread ? 'rgba(0, 122, 255, 0.05)' : 'var(--color-surface)';
+    const border = isUnread ? '1px solid var(--color-primary)' : '1px solid var(--color-border)';
+
+    return `
+    <div class="admin-list-item" style="flex-direction:column; align-items:flex-start; font-size:var(--text-sm); background:${bg}; border:${border}; cursor:pointer;" data-toggle-pedido="${sub.id}">
+      <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:4px;">
+        <strong style="display:flex;align-items:center;gap:6px;">
+           ${isUnread ? '<span style="width:8px;height:8px;background:var(--color-primary);border-radius:50%;display:inline-block;"></span>' : ''}
+           Tienda: ${escHtml(sub.store_name)}
+        </strong>
+        <div style="display:flex;align-items:center;gap:var(--space-2);">
+           <span style="color:var(--color-text-muted);font-size:var(--text-xs)">${new Date(sub.created_at).toLocaleString()}</span>
+           <button class="btn btn-ghost btn-sm" style="color:var(--color-error);padding:2px;" data-delete-submission="${sub.id}" aria-label="Eliminar">${icon.trash}</button>
+        </div>
+      </div>
+      <div style="color:var(--color-primary);margin-bottom:4px;font-weight:600;">Proveedor: ${escHtml(provName)}</div>
+      <div id="content_pedido_${sub.id}" style="display:none;white-space:pre-wrap;background:var(--color-surface-offset);padding:var(--space-2);border-radius:var(--radius-sm);width:100%;margin-top:8px;font-size:13px;line-height:1.4;">${escHtml(sub.content)}</div>
+    </div>`;
+  }).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">📦 No hay pedidos pendientes.</p>';
+
+  return `
+  <div id="app">
+    ${renderHeader(true)}
+    <main class="main-content">
+      <div class="back-row">
+        <button class="back-btn" id="logoutDepositoBtn">${icon.back} Salir de Depósito</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4)">
+        <h2 class="template-title" style="margin:0">Gestión de Pedidos</h2>
+        <label style="font-size:var(--text-xs); display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);">
+          <input type="checkbox" id="depositoSoundToggle" ${localStorage.getItem('depositoSound') === '1' ? 'checked' : ''} onchange="localStorage.setItem('depositoSound', this.checked ? '1' : '0')">
+          🔔 Sonido
+        </label>
+      </div>
+      <div class="admin-section">
+        <div class="admin-list">${list}</div>
+      </div>
+    </main>
+  </div>`;
+}
+
+function renderDepositoModal() {
+  return `
+  <div class="modal-overlay" id="depositoModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <h3 class="modal-title" style="margin:0">Acceso Depósito</h3>
+        <button class="btn-ghost modal-close" id="closeDepositoModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="error-msg" id="depositoError">Contraseña incorrecta.</div>
+      <div class="form-group">
+        <label class="form-label" for="depositoPass">Clave de acceso</label>
+        <input id="depositoPass" type="password" class="form-input" placeholder="Clave de depósito" maxlength="30">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="cancelDepositoModal">Cancelar</button>
+        <button class="btn btn-primary" id="confirmDepositoLogin">Ingresar</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderSupplier() {
@@ -441,7 +631,6 @@ function renderSupplier() {
         <div class="template-header">
           <h2 class="template-title">${escHtml(s.name)}</h2>
           <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-            <button class="btn btn-primary btn-sm" id="copyBtn">${icon.copy} Copiar y Reportar</button>
             <button class="btn btn-secondary btn-sm" id="loadLastBtn" title="Cargar último inventario enviado">↩ Último</button>
             <button class="btn btn-secondary btn-sm" id="clearBtn" title="Limpiar todos los campos">🗑 Limpiar</button>
           </div>
@@ -458,11 +647,15 @@ function renderSupplier() {
           <label class="form-label" for="observacion">Observación</label>
           <textarea id="observacion" class="form-textarea" style="min-height:80px" placeholder="Escribe alguna observación o novedad (opcional)"></textarea>
         </div>
+        <div style="display:flex;margin-top:var(--space-4);">
+          <button class="btn btn-primary" id="copyBtn" style="flex:1; justify-content:center; padding:12px; font-size: 1.1rem;">${icon.copy} Copiar y Reportar</button>
+        </div>
         <div class="copy-feedback" id="copyFeedback">✓ Copiado y reportado.</div>
       </div>
     </main>
   </div>
-  ${renderAdminModal()}`;
+  ${renderAdminModal()}
+  ${renderDepositoModal()}`;
 }
 
 function renderAdmin() {
@@ -489,7 +682,8 @@ function renderAdmin() {
       </div>
     </div>`).join('') || '<p style="font-size:var(--text-sm);color:var(--color-text-muted)">Sin comunicados aún.</p>';
 
-  const submissionList = (data.inventory_submissions || []).map(sub => `
+  const adminSubmissions = (data.inventory_submissions || []).filter(sub => !sub.supplier_name.startsWith('PEDIDO: '));
+  const submissionList = adminSubmissions.map(sub => `
     <div class="admin-list-item" style="flex-direction:column; align-items:flex-start; font-size:var(--text-sm)">
       <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:4px;">
         <strong>Tienda: ${escHtml(sub.store_name)}</strong>
@@ -583,7 +777,7 @@ function renderHeader(isAdmin = false) {
     </div>
     <div class="header-actions">
       <button class="btn-ghost" data-theme-toggle aria-label="Cambiar tema">${isDark ? icon.sun : icon.moon}</button>
-      ${!isAdmin && state.view !== 'login' ? `<button class="btn btn-secondary btn-sm" id="adminBtn">${icon.admin} Admin</button>` : ''}
+      ${!isAdmin && state.view !== 'login' ? `<button class="btn btn-secondary btn-sm" id="depositoBtn">Depósito</button> <button class="btn btn-secondary btn-sm" id="adminBtn">${icon.admin} Admin</button>` : ''}
       ${state.view !== 'login' ? `<button class="btn-ghost" id="logoutBtn" aria-label="Salir" title="Cerrar sesión">${icon.logout}</button>` : ''}
     </div>
   </header>`;
@@ -729,6 +923,8 @@ function attachEvents() {
       if (access) {
         currentStore = access.label;
         currentUserRole = access.role;
+        localStorage.setItem('currentStore', currentStore);
+        localStorage.setItem('currentUserRole', currentUserRole);
         state.view = 'home';
         render();
       } else {
@@ -745,7 +941,16 @@ function attachEvents() {
   // Logout
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) logoutBtn.addEventListener('click', () => {
-    currentStore = null; state.view = 'login'; render();
+    currentStore = null; 
+    currentUserRole = null; 
+    originalStore = null;
+    originalRole = null;
+    localStorage.removeItem('currentStore');
+    localStorage.removeItem('currentUserRole');
+    localStorage.removeItem('originalStore');
+    localStorage.removeItem('originalRole');
+    state.view = 'login'; 
+    render();
   });
 
   // Supplier cards
@@ -760,9 +965,44 @@ function attachEvents() {
   // Back button
   const backBtn = document.getElementById('backBtn');
   if (backBtn) backBtn.addEventListener('click', () => {
-    state.view = state.view === 'admin' ? 'home' : 'home';
+    state.view = 'home';
     state.selectedSupplier = null;
+    state.pedidoSupplierId = null;
     render();
+  });
+
+  // Go to Pedidos
+  const goPedidosBtn = document.getElementById('goPedidosBtn');
+  if (goPedidosBtn) goPedidosBtn.addEventListener('click', () => {
+     state.view = 'pedidos';
+     state.pedidoSupplierId = null;
+     render();
+  });
+
+  const logoutDepositoBtn = document.getElementById('logoutDepositoBtn');
+  if (logoutDepositoBtn) logoutDepositoBtn.addEventListener('click', () => {
+     if (originalStore) {
+        currentStore = originalStore;
+        currentUserRole = originalRole;
+        localStorage.setItem('currentStore', currentStore);
+        localStorage.setItem('currentUserRole', currentUserRole || '');
+        localStorage.removeItem('originalStore');
+        localStorage.removeItem('originalRole');
+        originalStore = null;
+        originalRole = null;
+        state.view = 'home';
+     } else {
+        currentStore = null;
+        currentUserRole = null;
+        originalStore = null;
+        originalRole = null;
+        localStorage.removeItem('currentStore');
+        localStorage.removeItem('currentUserRole');
+        localStorage.removeItem('originalStore');
+        localStorage.removeItem('originalRole');
+        state.view = 'login';
+     }
+     render();
   });
 
   // List compilation helper
@@ -774,7 +1014,7 @@ function attachEvents() {
     let resultText = `📦 *INVENTARIO: ${s.name.toUpperCase()}*\n`;
     resultText += `🏪 *TIENDA:* ${currentStore || 'No identificada'}\n`;
     resultText += `👤 *REALIZADO POR:* ${realizadoPor || 'No indicado'}\n`;
-    resultText += `📅 *FECHA:* ${new Date().toLocaleDateString()}\n`;
+    resultText += `📅 *FECHA:* ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}\n`;
     resultText += `--------------------------\n\n`;
     
     const lines = (s.products || '').split('\n');
@@ -945,6 +1185,68 @@ function attachEvents() {
   const adminModal = document.getElementById('adminModal');
   if (adminModal) adminModal.addEventListener('click', e => { if (e.target === adminModal) closeModal('adminModal'); });
 
+  // Pedidos Events
+  const pedidoSupplierSelect = document.getElementById('pedidoSupplierSelect');
+  if (pedidoSupplierSelect) {
+    if (state.pedidoSupplierId) pedidoSupplierSelect.value = state.pedidoSupplierId;
+    pedidoSupplierSelect.addEventListener('change', (e) => {
+       const val = e.target.value;
+       // Almacenamos el ID como string para evitar problemas de tipos con UUIDs
+       state.pedidoSupplierId = val || null;
+       render();
+    });
+  }
+
+  const pedidoSearchProduct = document.getElementById('pedidoSearchProduct');
+  if (pedidoSearchProduct) {
+    pedidoSearchProduct.addEventListener('input', (e) => {
+      const v = e.target.value.toLowerCase();
+      document.querySelectorAll('.pedido-item').forEach(el => {
+         const name = el.querySelector('.product-name').textContent.toLowerCase();
+         el.style.display = name.includes(v) ? 'flex' : 'none';
+      });
+    });
+  }
+
+  // Deleted local event listener for sendPedidoBtn -> Moved to global window.submitPedido
+
+  // Depósito modal
+  const depositoBtn = document.getElementById('depositoBtn');
+  if (depositoBtn) depositoBtn.addEventListener('click', () => {
+    openModal('depositoModal');
+    setTimeout(() => document.getElementById('depositoPass')?.focus(), 50);
+  });
+  
+  const closeDeposito = document.getElementById('closeDepositoModal');
+  const cancelDeposito = document.getElementById('cancelDepositoModal');
+  const confirmDeposito = document.getElementById('confirmDepositoLogin');
+  const depositoPass = document.getElementById('depositoPass');
+  
+  if (closeDeposito) closeDeposito.addEventListener('click', () => closeModal('depositoModal'));
+  if (cancelDeposito) cancelDeposito.addEventListener('click', () => closeModal('depositoModal'));
+  if (confirmDeposito) {
+    const doDeposito = () => {
+       if (depositoPass.value.trim() === 'Guil') {
+          closeModal('depositoModal');
+          originalStore = currentStore;
+          originalRole = currentUserRole;
+          currentStore = 'Depósito';
+          currentUserRole = 'admin'; // Allow viewing its specific screen
+          localStorage.setItem('originalStore', originalStore || '');
+          localStorage.setItem('originalRole', originalRole || '');
+          localStorage.setItem('currentStore', currentStore);
+          localStorage.setItem('currentUserRole', currentUserRole);
+          state.view = 'deposito';
+          render();
+       } else {
+          document.getElementById('depositoError').classList.add('show');
+          depositoPass.value = ''; depositoPass.focus();
+       }
+    };
+    confirmDeposito.addEventListener('click', doDeposito);
+    depositoPass?.addEventListener('keydown', e => e.key === 'Enter' && doDeposito());
+  }
+
   // Admin tabs
   document.querySelectorAll('[data-admin-tab]').forEach(btn => {
     btn.addEventListener('click', () => { state.adminTab = btn.dataset.adminTab; render(); });
@@ -981,14 +1283,38 @@ function attachEvents() {
   
     // Delete submission
     document.querySelectorAll('[data-delete-submission]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // Prevenir abrir el pedido al borrar
         const id = parseInt(btn.dataset.deleteSubmission);
-        if (confirm('¿Eliminar este reporte de inventario permanentemente?')) {
+        if (confirm('¿Eliminar este reporte permanentemente?')) {
           const { error } = await _supabase.from('inventory_submissions').delete().eq('id', id);
           if (error) {
             alert('Error al eliminar: ' + error.message);
           } else {
             fetchData();
+          }
+        }
+      });
+    });
+
+    // Toggle Pedido (Expand/Read Status)
+    document.querySelectorAll('[data-toggle-pedido]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        // Ignoramos si se hizo click en el botón borrar
+        if (e.target.closest('button')) return;
+        const id = parseInt(el.dataset.togglePedido, 10);
+        const contentDiv = document.getElementById('content_pedido_' + id);
+        if (contentDiv) {
+          contentDiv.style.display = contentDiv.style.display === 'none' ? 'block' : 'none';
+          
+          let readP = JSON.parse(localStorage.getItem('readPedidos') || '[]');
+          if (!readP.includes(id)) {
+            readP.push(id);
+            localStorage.setItem('readPedidos', JSON.stringify(readP));
+            el.style.background = 'var(--color-surface)';
+            el.style.border = '1px solid var(--color-border)';
+            const dot = el.querySelector('strong span');
+            if (dot) dot.remove();
           }
         }
       });
@@ -1156,6 +1482,134 @@ function getTodayDate() {
 }
 
 // ============================================================
+// GLOBAL SUBMIT PEDIDO
+// ============================================================
+window.addToCart = function() {
+    if (!state.pedidoSupplierId) { alert('Selecciona un proveedor.'); return; }
+    const selSupplier = data.suppliers.find(s => s.id == state.pedidoSupplierId);
+    let count = 0;
+    
+    const lines = (selSupplier.products || '').split('\n');
+    document.querySelectorAll('.pedido-qty').forEach(input => {
+      const val = input.value.trim();
+      const qty = parseInt(val ? val : "0", 10);
+      if (qty > 0) {
+        const i = parseInt(input.dataset.index, 10);
+        const productLine = lines[i].trim().replace('(0)', '');
+        pedidoCart.push({ supplier: selSupplier.name, productLine, qty });
+        count++;
+      }
+    });
+
+    if (count === 0) {
+      alert('Debes ingresar la cantidad de al menos 1 producto.');
+      return;
+    }
+    
+    localStorage.setItem('pedidoCart', JSON.stringify(pedidoCart));
+    alert('✅ Añadido al carrito con éxito.');
+    state.pedidoSupplierId = null;
+    render();
+};
+
+window.removeFromCart = function(index) {
+    if (confirm('¿Eliminar este producto del carrito?')) {
+        pedidoCart.splice(index, 1);
+        localStorage.setItem('pedidoCart', JSON.stringify(pedidoCart));
+        if (pedidoCart.length === 0) state.view = 'pedidos';
+        render();
+    }
+};
+
+window.submitCart = async function() {
+  try {
+    const sendPedidoBtn = document.getElementById('sendPedidoBtn');
+    if (pedidoCart.length === 0) return alert('El carrito está vacío.');
+    
+    const RealizadoPorInput = document.getElementById('pedidoRealizadoPor');
+    if (!RealizadoPorInput) return alert('Error en el DOM');
+    const realizadoPor = RealizadoPorInput.value.trim();
+    if (!realizadoPor) return alert('El campo "Realizado por" es obligatorio.');
+    
+    const obs = document.getElementById('pedidoObservacion').value.trim();
+
+    if (!confirm('¿Seguro que quieres enviar definitivamente el carrito a Depósito?')) return;
+    
+    if (sendPedidoBtn) {
+      sendPedidoBtn.disabled = true;
+      sendPedidoBtn.innerHTML = '⏳ Enviando...';
+    }
+
+    const grouped = {};
+    pedidoCart.forEach(item => {
+      if (!grouped[item.supplier]) grouped[item.supplier] = [];
+      grouped[item.supplier].push(item);
+    });
+
+    const fecha = new Date().toLocaleDateString() + ' a las ' + new Date().toLocaleTimeString();
+    
+    let orderContent = `📦 *PEDIDO GENERAL*\n`;
+    orderContent += `🏪 *TIENDA:* ${currentStore || 'No identificada'}\n`;
+    orderContent += `👤 *REALIZADO POR:* ${realizadoPor}\n`;
+    orderContent += `📅 *FECHA:* ${fecha}\n`;
+    orderContent += `--------------------------\n\n`;
+
+    for (const [supplierName, items] of Object.entries(grouped)) {
+       orderContent += `▶ **${supplierName.toUpperCase()}**\n`;
+       items.forEach(it => {
+         orderContent += `- ${it.qty}x ${it.productLine}\n`;
+       });
+       orderContent += `\n`;
+    }
+
+    if (obs) orderContent += `📝 *OBSERVACIÓN:* ${obs}\n`;
+
+    const supplierTitle = Object.keys(grouped).length === 1 
+          ? 'PEDIDO: ' + Object.keys(grouped)[0] 
+          : 'PEDIDO: VARIOS PROVEEDORES';
+
+    const { error } = await _supabase.from('inventory_submissions').insert([{
+         store_name: currentStore || 'Tienda',
+         supplier_name: supplierTitle,
+         content: orderContent
+    }]);
+
+    if (error) {
+       alert('Error de conexión al enviar: ' + error.message);
+       if (sendPedidoBtn) { sendPedidoBtn.disabled = false; sendPedidoBtn.innerHTML = 'Enviar Pedido'; }
+    } else {
+       alert('✓ Pedido completado y enviado con éxito.');
+       pedidoCart = [];
+       localStorage.removeItem('pedidoCart');
+       state.view = 'home';
+       fetchData(); // This will re-render
+    }
+  } catch (err) {
+    alert('Error inesperado: ' + err.message);
+    console.error(err);
+  }
+};
+
+// ============================================================
+// REALTIME
+// ============================================================
+function initRealtime() {
+  _supabase.channel('public:inventory_submissions')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'inventory_submissions' }, payload => {
+       const isPedido = payload.new.supplier_name.startsWith('PEDIDO: ');
+       fetchData().then(() => {
+          if (isPedido && state.view === 'deposito') {
+             if (localStorage.getItem('depositoSound') === '1') {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                audio.play().catch(e => console.log('Autoplay prevent by browser', e));
+             }
+          }
+       });
+    })
+    .subscribe();
+}
+
+// ============================================================
 // BOOT
 // ============================================================
 (function(){
@@ -1163,6 +1617,7 @@ function getTodayDate() {
   const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
   html.setAttribute('data-theme', isDark ? 'dark' : 'light');
   fetchData();
+  initRealtime();
 })();
 </script>
 </body>
