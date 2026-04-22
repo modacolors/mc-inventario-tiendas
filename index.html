@@ -366,6 +366,10 @@ function renderLogin() {
       <div class="form-group">
         <label class="form-label" for="storeKey">Clave de tienda</label>
         <input id="storeKey" type="password" class="form-input" placeholder="Ingresa tu clave" autocomplete="current-password" maxlength="20">
+        <label style="font-size: var(--text-xs); display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted); margin-top: var(--space-2);">
+          <input type="checkbox" onchange="document.getElementById('storeKey').type = this.checked ? 'text' : 'password'">
+          Mostrar clave
+        </label>
       </div>
       <button class="btn btn-primary" style="width:100%;justify-content:center" id="loginBtn">Ingresar</button>
     </div>
@@ -588,6 +592,10 @@ function renderDepositoModal() {
       <div class="form-group">
         <label class="form-label" for="depositoPass">Clave de acceso</label>
         <input id="depositoPass" type="password" class="form-input" placeholder="Clave de depósito" maxlength="30">
+        <label style="font-size: var(--text-xs); display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted); margin-top: var(--space-2);">
+          <input type="checkbox" onchange="document.getElementById('depositoPass').type = this.checked ? 'text' : 'password'">
+          Mostrar clave
+        </label>
       </div>
       <div class="form-actions">
         <button class="btn btn-secondary" id="cancelDepositoModal">Cancelar</button>
@@ -601,6 +609,11 @@ function renderSupplier() {
   const s = data.suppliers.find(x => x.id === state.selectedSupplier);
   if (!s) { state.view = 'home'; return renderHome(); }
   
+  const draftKey = `draft_${s.id}_${currentStore}`;
+  const draftStr = localStorage.getItem(draftKey);
+  const draft = draftStr ? JSON.parse(draftStr) : null;
+  const draftDate = draft && draft._timestamp ? new Date(draft._timestamp).toLocaleString() : null;
+
   const productsLines = (s.products || '').split('\n');
   const renderedProducts = productsLines.map((line, i) => {
     const trimmed = line.trim();
@@ -611,7 +624,7 @@ function renderSupplier() {
         <div class="product-item">
           <span class="product-name">${escHtml(parts[0].trim())}</span>
           <div style="display:flex;align-items:center;gap:4px;">
-            <input type="number" class="product-qty" data-index="${i}" min="0" placeholder="0">
+            <input type="number" class="product-qty" data-index="${i}" min="0" placeholder="0" value="${draft && draft[i] !== undefined ? escAttr(draft[i]) : ''}">
             ${parts[1] ? `<span>${escHtml(parts[1])}</span>` : ''}
           </div>
         </div>
@@ -629,6 +642,7 @@ function renderSupplier() {
         <button class="back-btn" id="backBtn">${icon.back} Proveedores</button>
       </div>
       <div class="template-section">
+        ${draftDate ? `<div style="font-size:var(--text-xs); color:var(--color-warning); margin-bottom:var(--space-2); font-weight:600;">📝 Borrador en curso (Última edición: ${draftDate})</div>` : ''}
         <div class="template-header">
           <h2 class="template-title">${escHtml(s.name)}</h2>
           <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
@@ -642,11 +656,11 @@ function renderSupplier() {
         <div class="divider"></div>
         <div class="form-group">
           <label class="form-label" for="realizadoPor">Realizado por <span style="color:var(--color-error)">*</span></label>
-          <input id="realizadoPor" class="form-input" type="text" placeholder="Nombre de quien realiza el inventario" maxlength="60">
+          <input id="realizadoPor" class="form-input" type="text" placeholder="Nombre de quien realiza el inventario" maxlength="60" value="${draft && draft._realizadoPor ? escAttr(draft._realizadoPor) : ''}">
         </div>
         <div class="form-group">
           <label class="form-label" for="observacion">Observación</label>
-          <textarea id="observacion" class="form-textarea" style="min-height:80px" placeholder="Escribe alguna observación o novedad (opcional)"></textarea>
+          <textarea id="observacion" class="form-textarea" style="min-height:80px" placeholder="Escribe alguna observación o novedad (opcional)">${draft && draft._observacion ? escHtml(draft._observacion) : ''}</textarea>
         </div>
         <div style="display:flex;margin-top:var(--space-4);">
           <button class="btn btn-primary" id="copyBtn" style="flex:1; justify-content:center; padding:12px; font-size: 1.1rem;">${icon.copy} Copiar y Reportar</button>
@@ -796,6 +810,10 @@ function renderAdminModal() {
       <div class="form-group">
         <label class="form-label" for="adminPass">Contraseña</label>
         <input id="adminPass" type="password" class="form-input" placeholder="Contraseña de administrador" maxlength="30">
+        <label style="font-size: var(--text-xs); display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted); margin-top: var(--space-2);">
+          <input type="checkbox" onchange="document.getElementById('adminPass').type = this.checked ? 'text' : 'password'">
+          Mostrar clave
+        </label>
       </div>
       <div class="form-actions">
         <button class="btn btn-secondary" id="cancelAdminModal">Cancelar</button>
@@ -1065,6 +1083,7 @@ function attachEvents() {
     savedValues._realizadoPor = document.getElementById('realizadoPor')?.value || '';
     savedValues._observacion = document.getElementById('observacion')?.value || '';
     localStorage.setItem(saveKey, JSON.stringify(savedValues));
+    localStorage.removeItem(`draft_${state.selectedSupplier}_${currentStore}`);
 
     // Deshabilitar botón para evitar envíos duplicados
     copyBtn.disabled = true;
@@ -1117,6 +1136,27 @@ function attachEvents() {
     });
   });
 
+  // Auto-guardar borrador
+  if (state.view === 'supplier') {
+    const saveDraft = () => {
+      const s = data.suppliers.find(x => x.id === state.selectedSupplier);
+      if (!s) return;
+      const draftKey = `draft_${s.id}_${currentStore}`;
+      const draft = { _timestamp: new Date().getTime() };
+      document.querySelectorAll('.product-qty').forEach(input => {
+        if (input.value !== '') draft[input.dataset.index] = input.value;
+      });
+      const rp = document.getElementById('realizadoPor');
+      const obs = document.getElementById('observacion');
+      if (rp && rp.value) draft._realizadoPor = rp.value;
+      if (obs && obs.value) draft._observacion = obs.value;
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    };
+    document.querySelectorAll('.product-qty, #realizadoPor, #observacion').forEach(el => {
+      el.addEventListener('input', saveDraft);
+    });
+  }
+
   // Cargar último inventario
   const loadLastBtn = document.getElementById('loadLastBtn');
   if (loadLastBtn) loadLastBtn.addEventListener('click', () => {
@@ -1131,6 +1171,7 @@ function attachEvents() {
     const obs = document.getElementById('observacion');
     if (rp && vals._realizadoPor) rp.value = vals._realizadoPor;
     if (obs && vals._observacion) obs.value = vals._observacion;
+    if (rp) rp.dispatchEvent(new Event('input'));
     const fb = document.getElementById('copyFeedback');
     fb.textContent = '↩ Último inventario cargado.';
     fb.classList.add('show');
@@ -1146,6 +1187,7 @@ function attachEvents() {
     const obs = document.getElementById('observacion');
     if (rp) rp.value = '';
     if (obs) obs.value = '';
+    localStorage.removeItem(`draft_${state.selectedSupplier}_${currentStore}`);
     const fb = document.getElementById('copyFeedback');
     fb.textContent = '🗑 Inventario limpiado.';
     fb.classList.add('show');
